@@ -1,0 +1,56 @@
+[
+  {
+    "label": "CMake: configure (Debug)",
+    "command": "cmake",
+    "args": [
+      "-S",
+      ".",
+      "-B",
+      "build",
+      "-DCMAKE_BUILD_TYPE=Debug",
+      "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    ],
+  },
+  {
+    "label": "CMake: configure (Release)",
+    "command": "cmake",
+    "args": [
+      "-S",
+      ".",
+      "-B",
+      "build",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    ],
+  },
+  {
+    "label": "CMake: build",
+    "command": "cmake",
+    "args": ["--build", "build", "--parallel"],
+  },
+  {
+    "label": "CTest: run tests",
+    "command": "ctest",
+    "args": ["--test-dir", "build", "--output-on-failure"],
+  },
+  {
+    "label": "Run consumer (help)",
+    "command": "./build/typr_io_consumer",
+    "args": ["--help"],
+  },
+  {
+    "label": "Export compile_commands.json",
+    "command": "cmake",
+    "args": [
+      "-E",
+      "copy_if_different",
+      "build/compile_commands.json",
+      "compile_commands.json",
+    ],
+  },
+  {
+    "label": "Clean",
+    "command": "sh",
+    "args": ["-lc", "rm -rf build compile_commands.json"],
+  },
+]
