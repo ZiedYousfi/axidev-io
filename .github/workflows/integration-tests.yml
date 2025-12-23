@@ -75,10 +75,13 @@ jobs:
       - name: Find integration test binary (Unix)
         id: find-integration-binary
         run: |
-          # Find the built integration test executable and emit its path as step output.
+          # Find the built integration test executable and copy it to the workspace root so
+          # the uploaded artifact has a flat path (avoids nested directories like build/...).
           found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
           if [ -n "$found" ]; then
-            echo "path=$found" >> $GITHUB_OUTPUT
+            bname=$(basename "$found")
+            cp "$found" "$bname"
+            echo "path=$bname" >> $GITHUB_OUTPUT
           else
             echo "path=" >> $GITHUB_OUTPUT
           fi
@@ -133,9 +136,13 @@ jobs:
       - name: Find integration test binary (Unix)
         id: find-integration-binary
         run: |
+          # Find the built integration test executable and copy it to the workspace root so
+          # the uploaded artifact has a flat path (avoids nested directories like build/...).
           found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
           if [ -n "$found" ]; then
-            echo "path=$found" >> $GITHUB_OUTPUT
+            bname=$(basename "$found")
+            cp "$found" "$bname"
+            echo "path=$bname" >> $GITHUB_OUTPUT
           else
             echo "path=" >> $GITHUB_OUTPUT
           fi
@@ -179,9 +186,13 @@ jobs:
       - name: Find integration test binary (Unix)
         id: find-integration-binary
         run: |
+          # Find the built integration test executable and copy it to the workspace root so
+          # the uploaded artifact has a flat path (avoids nested directories like build/...).
           found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
           if [ -n "$found" ]; then
-            echo "path=$found" >> $GITHUB_OUTPUT
+            bname=$(basename "$found")
+            cp "$found" "$bname"
+            echo "path=$bname" >> $GITHUB_OUTPUT
           else
             echo "path=" >> $GITHUB_OUTPUT
           fi
@@ -228,9 +239,13 @@ jobs:
       - name: Find integration test binary (Unix)
         id: find-integration-binary
         run: |
+          # Find the built integration test executable and copy it to the workspace root so
+          # the uploaded artifact has a flat path (avoids nested directories like build/...).
           found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
           if [ -n "$found" ]; then
-            echo "path=$found" >> $GITHUB_OUTPUT
+            bname=$(basename "$found")
+            cp "$found" "$bname"
+            echo "path=$bname" >> $GITHUB_OUTPUT
           else
             echo "path=" >> $GITHUB_OUTPUT
           fi
@@ -327,7 +342,9 @@ jobs:
         run: |
           $found = Get-ChildItem -Path build -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'typr-io-integration-tests*.exe' } | Select-Object -First 1
           if ($found) {
-            Write-Output "path=$($found.FullName)" >> $env:GITHUB_OUTPUT
+            # Copy to workspace root so the uploaded artifact has a flat path
+            Copy-Item -Path $found.FullName -Destination $found.Name
+            Write-Output "path=$($found.Name)" >> $env:GITHUB_OUTPUT
           } else {
             Write-Output "path=" >> $env:GITHUB_OUTPUT
           }
@@ -424,7 +441,9 @@ jobs:
         run: |
           $found = Get-ChildItem -Path build -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'typr-io-integration-tests*.exe' } | Select-Object -First 1
           if ($found) {
-            Write-Output "path=$($found.FullName)" >> $env:GITHUB_OUTPUT
+            # Copy to workspace root so the uploaded artifact has a flat path
+            Copy-Item -Path $found.FullName -Destination $found.Name
+            Write-Output "path=$($found.Name)" >> $env:GITHUB_OUTPUT
           } else {
             Write-Output "path=" >> $env:GITHUB_OUTPUT
           }
@@ -470,8 +489,11 @@ jobs:
                 if [ -f "$f" ]; then
                   os=$(basename "$d" | sed 's/^integration-test-binary-//')
                   name="typr-io-integration-tests-${os}"
-                  ext="${f##*.}"
-                  if [ "$ext" = "$f" ]; then
+                  # Extract extension from the basename only so dots in directory names
+                  # (e.g. "ubuntu-24.04") do not become part of the extension/path.
+                  bname=$(basename "$f")
+                  ext="${bname##*.}"
+                  if [ "$ext" = "$bname" ]; then
                     # No extension
                     cp "$f" "release-assets/${name}"
                   else
