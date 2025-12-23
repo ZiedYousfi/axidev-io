@@ -133,8 +133,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies (Windows)
+        shell: pwsh
         run: |
-          choco install -y cmake
+          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+            Write-Host "CMake not found, installing via Chocolatey..."
+            $tries = 0
+            $installed = $false
+            do {
+              $tries++
+              Write-Host "Attempt $tries to ensure cmake via Chocolatey..."
+              choco install -y cmake --install-arguments "'/l*v C:\cmake.install_msi_install.log'" --no-progress
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "choco install returned $LASTEXITCODE; trying 'choco upgrade -y cmake' as a fallback..."
+                choco upgrade -y cmake --install-arguments "'/l*v C:\cmake.install_msi_install.log'" --no-progress
+              }
+              if ($LASTEXITCODE -eq 0 -or (Get-Command cmake -ErrorAction SilentlyContinue)) {
+                $installed = $true
+                break
+              }
+              Start-Sleep -Seconds (5 * $tries)
+            } while ($tries -lt 3)
+            if (-not $installed) {
+              Write-Host "CMake installation failed after $tries attempts. See C:\cmake.install_msi_install.log for MSI details."
+              exit 1
+            }
+          } else {
+            Write-Host "CMake already installed: $(cmake --version)"
+          }
 
       - name: Clean stale build directory (Windows)
         shell: pwsh
@@ -171,8 +196,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies (Windows)
+        shell: pwsh
         run: |
-          choco install -y cmake
+          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+            Write-Host "CMake not found, installing via Chocolatey..."
+            $tries = 0
+            $installed = $false
+            do {
+              $tries++
+              Write-Host "Attempt $tries to ensure cmake via Chocolatey..."
+              choco install -y cmake --install-arguments "'/l*v C:\cmake.install_msi_install.log'" --no-progress
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "choco install returned $LASTEXITCODE; trying 'choco upgrade -y cmake' as a fallback..."
+                choco upgrade -y cmake --install-arguments "'/l*v C:\cmake.install_msi_install.log'" --no-progress
+              }
+              if ($LASTEXITCODE -eq 0 -or (Get-Command cmake -ErrorAction SilentlyContinue)) {
+                $installed = $true
+                break
+              }
+              Start-Sleep -Seconds (5 * $tries)
+            } while ($tries -lt 3)
+            if (-not $installed) {
+              Write-Host "CMake installation failed after $tries attempts. See C:\cmake.install_msi_install.log for MSI details."
+              exit 1
+            }
+          } else {
+            Write-Host "CMake already installed: $(cmake --version)"
+          }
 
       - name: Clean stale build directory (Windows)
         shell: pwsh
