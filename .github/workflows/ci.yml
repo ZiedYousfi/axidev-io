@@ -1,0 +1,51 @@
+name: CI
+
+# Build & test on push and pull-request for major platforms. This workflow
+# intentionally does not enable the interactive integration tests by default.
+# Integration tests are gated behind TYPR_IO_RUN_INTEGRATION_TESTS and should
+# be executed via the manual `integration-tests` workflow when desired.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build and test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential cmake libx11-dev libxi-dev libxtst-dev libxrandr-dev libxcursor-dev libxinerama-dev
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew update
+          brew install cmake
+
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install -y cmake
+
+      - name: Configure (CMake)
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        run: cmake --build build --parallel
+
+      - name: Run tests (ctest)
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure

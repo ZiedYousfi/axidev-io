@@ -1,0 +1,91 @@
+name: Integration tests (manual)
+
+# Manual workflow to run the integration tests. Integration tests are gated
+# behind environment variables in the test code:
+#
+# - TYPR_IO_RUN_INTEGRATION_TESTS=1  : enables integration tests
+# - TYPR_IO_AUTO_CONFIRM=1           : auto-confirm prompts (non-interactive)
+# - TYPR_IO_INTERACTIVE=(true|yes|1) : enable interactive prompts
+#
+# By default this workflow sets TYPR_IO_RUN_INTEGRATION_TESTS=1 and
+# TYPR_IO_AUTO_CONFIRM=1 so integration tests can run in a non-interactive
+# CI-friendly way. If you want interactive behavior, trigger the workflow
+# manually and set the `interactive` input to `true`.
+on:
+  workflow_dispatch:
+    inputs:
+      interactive:
+        description: 'Run tests in interactive mode (set to true to enable interactive prompts)'
+        required: false
+        default: 'false'
+
+jobs:
+  integration:
+    name: Integration tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      # Always enable integration tests for this workflow
+      TYPR_IO_RUN_INTEGRATION_TESTS: '1'
+      # Default to auto-confirm (so the workflow is non-interactive by default)
+      TYPR_IO_AUTO_CONFIRM: '1'
+      # Pass through the interactive input (string 'true'/'false'); the test
+      # helper recognizes '1', 'true', 'yes' as enabled.
+      TYPR_IO_INTERACTIVE: ${{ github.event.inputs.interactive }}
+      # For Linux (Xvfb) we'll use :99; harmless to set on macOS too.
+      DISPLAY: ':99'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential cmake libx11-dev libxi-dev libxtst-dev \
+            libxrandr-dev libxcursor-dev libxinerama-dev xvfb
+          # Try to enable uinput device (sender backend may require it).
+          sudo modprobe uinput || true
+          sudo chmod 666 /dev/uinput || true
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew update
+          brew install cmake
+
+      - name: Start Xvfb (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Start Xvfb in the background so GUI-related injection can run.
+          Xvfb :99 -screen 0 1024x768x24 & sleep 2
+
+      - name: Configure (CMake)
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        run: cmake --build build --parallel
+
+      - name: Run integration tests (non-interactive by default)
+        env:
+          TYPR_IO_RUN_INTEGRATION_TESTS: ${{ env.TYPR_IO_RUN_INTEGRATION_TESTS }}
+          TYPR_IO_AUTO_CONFIRM: ${{ env.TYPR_IO_AUTO_CONFIRM }}
+          TYPR_IO_INTERACTIVE: ${{ env.TYPR_IO_INTERACTIVE }}
+          DISPLAY: ${{ env.DISPLAY }}
+          CTEST_OUTPUT_ON_FAILURE: '1'
+        run: |
+          # Run the unit/integration test executable (it contains gated integration tests).
+          ctest --test-dir build --output-on-failure -R typr-io-unit-tests
+
+      - name: Upload test logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-logs-${{ matrix.os }}
+          path: |
+            build/Testing
+            build/tests || true
