@@ -34,22 +34,14 @@
     "args": ["--test-dir", "build", "--output-on-failure"],
   },
   {
-    "label": "Run integration tests (interactive)",
+    "label": "Run integration test",
     "command": "sh",
     "args": [
       "-lc",
-      "cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --parallel && ./build/tests/typr-io-unit-tests",
+      "cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --parallel && ./build/tests/typr-io-unit-tests \"integration: simple STDIN loopback\"",
     ],
     "env": {
       "TYPR_IO_RUN_INTEGRATION_TESTS": "1",
-      "TYPR_IO_INTERACTIVE": "1",
-    },
-  },
-  {
-    "label": "Prepare integration tests (request permissions)",
-    "command": "./build/typr_io_consumer",
-    "args": ["--request-permissions"],
-    "env": {
       "TYPR_IO_INTERACTIVE": "1",
     },
   },
