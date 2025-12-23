@@ -11,40 +11,132 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
-    name: Build and test on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  # Ubuntu / x86_64
+  build-linux-x64:
+    name: Build and test on ubuntu-latest (x86_64)
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential cmake libx11-dev libxi-dev libxtst-dev libxrandr-dev libxcursor-dev libxinerama-dev
 
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: Configure (CMake)
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests (ctest)
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  # Ubuntu / ARM64
+  build-linux-arm64:
+    name: Build and test on ubuntu-22.04-arm64 (arm64)
+    runs-on: ubuntu-22.04-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential cmake libx11-dev libxi-dev libxtst-dev libxrandr-dev libxcursor-dev libxinerama-dev
+
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: "Configure (CMake, target: arm64)"
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests (ctest)
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  # macOS / x86_64
+  build-macos-x64:
+    name: Build and test on macos-latest (x86_64)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
         run: |
           brew update
           brew install cmake
 
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: "Configure (CMake, target: x86_64)"
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests (ctest)
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  # macOS / ARM64
+  build-macos-arm64:
+    name: Build and test on macos-latest (arm64)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (macOS)
+        run: |
+          brew update
+          brew install cmake
+
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: "Configure (CMake, target: arm64)"
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests (ctest)
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  # Windows / x86_64
+  build-windows-x64:
+    name: Build and test on windows-latest (x86_64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install dependencies (Windows)
-        if: matrix.os == 'windows-latest'
         run: |
           choco install -y cmake
 
-      - name: Clean stale build directory (Unix)
-        if: runner.os != 'Windows'
-        run: rm -rf build
-
       - name: Clean stale build directory (Windows)
-        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           if (Test-Path -LiteralPath 'build') {
@@ -58,13 +150,46 @@ jobs:
             Write-Host "No build directory to remove"
           }
 
-      - name: Configure (CMake)
-        if: runner.os != 'Windows'
-        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-
       - name: Configure (CMake, Windows)
-        if: runner.os == 'Windows'
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DTYPR_IO_BUILD_TESTS=ON
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests (ctest)
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  # Windows / ARM64
+  build-windows-arm64:
+    name: Build and test on windows-latest (arm64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Windows)
+        run: |
+          choco install -y cmake
+
+      - name: Clean stale build directory (Windows)
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath 'build') {
+            try {
+              Remove-Item -LiteralPath 'build' -Recurse -Force -ErrorAction Stop -Verbose
+            } catch {
+              Write-Host "Warning: failed to remove 'build': $($_.Exception.Message)"
+              # Intentionally don't rethrow so the workflow step succeeds even if removal fails
+            }
+          } else {
+            Write-Host "No build directory to remove"
+          }
+
+      - name: "Configure (CMake, Windows, target: ARM64)"
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ARM64 -DTYPR_IO_BUILD_TESTS=ON
 
       - name: Build (CMake)
         run: cmake --build build --config Release --parallel

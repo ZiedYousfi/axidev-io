@@ -26,30 +26,29 @@ on:
 permissions:
   contents: write
 
+# Note: the previous workflow used a single matrix job with step-level `if`
+# checks to vary behavior per platform. Split that into individual jobs below
+# (one job per OS/arch) so platform-specific logic lives in the job and is
+# easier to reason about. Each job uploads an artifact that includes both
+# the OS and the architecture so the release job can pick them up later.
+
 jobs:
-  integration:
-    name: Integration tests on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  integration-ubuntu-x64:
+    name: Integration tests on ubuntu-latest (x86_64)
+    runs-on: ubuntu-latest
     env:
-      # Always enable integration tests for this workflow
       TYPR_IO_RUN_INTEGRATION_TESTS: "1"
-      # Default to auto-confirm (so the workflow is non-interactive by default)
       TYPR_IO_AUTO_CONFIRM: "1"
-      # This workflow always builds binaries in interactive mode; set the env var
-      # so integration helpers that check TYPR_IO_INTERACTIVE will behave accordingly.
       TYPR_IO_INTERACTIVE: "1"
-      # For Linux (Xvfb) we'll use :99; harmless to set on macOS too.
       DISPLAY: ":99"
+      OS_NAME: ubuntu-latest
+      ARCH: x64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -59,29 +58,209 @@ jobs:
           sudo modprobe uinput || true
           sudo chmod 666 /dev/uinput || true
 
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew update
-          brew install cmake
-
-      - name: Install dependencies (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install -y cmake
-
       - name: Start Xvfb (Linux)
-        if: matrix.os == 'ubuntu-latest'
         run: |
           # Start Xvfb in the background so GUI-related injection can run.
           Xvfb :99 -screen 0 1024x768x24 & sleep 2
 
       - name: Clean stale build directory (Unix)
-        if: runner.os != 'Windows'
         run: rm -rf build
 
+      - name: Configure (CMake, Linux)
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Find integration test binary (Unix)
+        id: find-integration-binary
+        run: |
+          # Find the built integration test executable and emit its path as step output.
+          found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
+          if [ -n "$found" ]; then
+            echo "path=$found" >> $GITHUB_OUTPUT
+          else
+            echo "path=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload integration test binary
+        if: steps.find-integration-binary.outputs.path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+          path: ${{ steps.find-integration-binary.outputs.path }}
+
+  integration-ubuntu-arm64:
+    name: Integration tests on ubuntu-22.04-arm64 (arm64)
+    runs-on: ubuntu-22.04-arm64
+    env:
+      TYPR_IO_RUN_INTEGRATION_TESTS: "1"
+      TYPR_IO_AUTO_CONFIRM: "1"
+      TYPR_IO_INTERACTIVE: "1"
+      DISPLAY: ":99"
+      OS_NAME: ubuntu-22.04-arm64
+      ARCH: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential cmake libx11-dev libxi-dev libxtst-dev \
+            libxrandr-dev libxcursor-dev libxinerama-dev xvfb
+          # Try to enable uinput device (sender backend may require it).
+          sudo modprobe uinput || true
+          sudo chmod 666 /dev/uinput || true
+
+      - name: Start Xvfb (Linux)
+        run: |
+          # Start Xvfb in the background so GUI-related injection can run.
+          Xvfb :99 -screen 0 1024x768x24 & sleep 2
+
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: Configure (CMake, Linux / arm64)
+        # On an arm64 runner this config will build a native arm64 binary.
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Find integration test binary (Unix)
+        id: find-integration-binary
+        run: |
+          found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
+          if [ -n "$found" ]; then
+            echo "path=$found" >> $GITHUB_OUTPUT
+          else
+            echo "path=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload integration test binary
+        if: steps.find-integration-binary.outputs.path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+          path: ${{ steps.find-integration-binary.outputs.path }}
+
+  integration-macos-x64:
+    name: Integration tests on macos-latest (x86_64)
+    runs-on: macos-latest
+    env:
+      TYPR_IO_RUN_INTEGRATION_TESTS: "1"
+      TYPR_IO_AUTO_CONFIRM: "1"
+      TYPR_IO_INTERACTIVE: "1"
+      DISPLAY: ":99"
+      OS_NAME: macos-latest
+      ARCH: x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (macOS)
+        run: |
+          brew update
+          brew install cmake
+
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: Configure (CMake, macOS / x86_64)
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Find integration test binary (Unix)
+        id: find-integration-binary
+        run: |
+          found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
+          if [ -n "$found" ]; then
+            echo "path=$found" >> $GITHUB_OUTPUT
+          else
+            echo "path=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload integration test binary
+        if: steps.find-integration-binary.outputs.path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+          path: ${{ steps.find-integration-binary.outputs.path }}
+
+  integration-macos-arm64:
+    name: Integration tests on macos-latest (arm64)
+    runs-on: macos-latest
+    env:
+      TYPR_IO_RUN_INTEGRATION_TESTS: "1"
+      TYPR_IO_AUTO_CONFIRM: "1"
+      TYPR_IO_INTERACTIVE: "1"
+      DISPLAY: ":99"
+      OS_NAME: macos-latest
+      ARCH: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (macOS)
+        run: |
+          brew update
+          brew install cmake
+
+      - name: Clean stale build directory (Unix)
+        run: rm -rf build
+
+      - name: Configure (CMake, macOS / arm64)
+        # Prefer building for arm64 explicitly. On Apple runners this should
+        # produce an arm64 binary; on other macOS hosts CMake/Xcode may
+        # cross-compile if supported.
+        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Find integration test binary (Unix)
+        id: find-integration-binary
+        run: |
+          found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
+          if [ -n "$found" ]; then
+            echo "path=$found" >> $GITHUB_OUTPUT
+          else
+            echo "path=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload integration test binary
+        if: steps.find-integration-binary.outputs.path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+          path: ${{ steps.find-integration-binary.outputs.path }}
+
+  integration-windows-x64:
+    name: Integration tests on windows-latest (x86_64)
+    runs-on: windows-latest
+    env:
+      TYPR_IO_RUN_INTEGRATION_TESTS: "1"
+      TYPR_IO_AUTO_CONFIRM: "1"
+      TYPR_IO_INTERACTIVE: "1"
+      OS_NAME: windows-latest
+      ARCH: x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Windows)
+        run: |
+          choco install -y cmake
+
       - name: Clean stale build directory (Windows)
-        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $path = 'build'
@@ -96,35 +275,16 @@ jobs:
             Write-Host "No build directory to remove"
           }
 
-      - name: Configure (CMake, Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-
       - name: Configure (CMake, Windows)
-        if: runner.os == 'Windows'
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON
 
       - name: Build (CMake)
         run: cmake --build build --config Release --parallel
 
-      - name: Find integration test binary (Unix)
-        id: find-integration-binary-unix
-        if: runner.os != 'Windows'
-        run: |
-          # Find the built integration test executable and emit its path as step output.
-          found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
-          if [ -n "$found" ]; then
-            echo "path=$found" >> $GITHUB_OUTPUT
-          else
-            echo "path=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Find integration test binary (Windows)
-        id: find-integration-binary-windows
-        if: runner.os == 'Windows'
+        id: find-integration-binary
         shell: pwsh
         run: |
-          # Find the built integration test executable (.exe) and emit its path as step output.
           $found = Get-ChildItem -Path build -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'typr-io-integration-tests*.exe' } | Select-Object -First 1
           if ($found) {
             Write-Output "path=$($found.FullName)" >> $env:GITHUB_OUTPUT
@@ -133,20 +293,79 @@ jobs:
           }
 
       - name: Upload integration test binary
-        if: steps.find-integration-binary-unix.outputs.path != '' || steps.find-integration-binary-windows.outputs.path != ''
+        if: steps.find-integration-binary.outputs.path != ''
         uses: actions/upload-artifact@v4
         with:
-          name: integration-test-binary-${{ matrix.os }}
-          path: ${{ steps.find-integration-binary-unix.outputs.path || steps.find-integration-binary-windows.outputs.path }}
+          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+          path: ${{ steps.find-integration-binary.outputs.path }}
 
-      # Integration tests are intentionally not run in this workflow.
-      # The workflow only builds the integration test binaries so they can be
-      # executed / validated outside of CI.
+  integration-windows-arm64:
+    name: Integration tests on windows-latest (arm64)
+    runs-on: windows-latest
+    env:
+      TYPR_IO_RUN_INTEGRATION_TESTS: "1"
+      TYPR_IO_AUTO_CONFIRM: "1"
+      TYPR_IO_INTERACTIVE: "1"
+      OS_NAME: windows-latest
+      ARCH: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Windows)
+        run: |
+          choco install -y cmake
+
+      - name: Clean stale build directory (Windows)
+        shell: pwsh
+        run: |
+          $path = 'build'
+          if (Test-Path -LiteralPath $path) {
+            try {
+              Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop -Verbose
+            } catch {
+              Write-Host "Warning: failed to remove '$path': $($_.Exception.Message)"
+              # Intentionally don't rethrow so the workflow step succeeds even if removal fails
+            }
+          } else {
+            Write-Host "No build directory to remove"
+          }
+
+      - name: Configure (CMake, Windows ARM64)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ARM64 -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON
+
+      - name: Build (CMake)
+        run: cmake --build build --config Release --parallel
+
+      - name: Find integration test binary (Windows)
+        id: find-integration-binary
+        shell: pwsh
+        run: |
+          $found = Get-ChildItem -Path build -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'typr-io-integration-tests*.exe' } | Select-Object -First 1
+          if ($found) {
+            Write-Output "path=$($found.FullName)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "path=" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Upload integration test binary
+        if: steps.find-integration-binary.outputs.path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+          path: ${{ steps.find-integration-binary.outputs.path }}
 
   release:
     name: Create integration test release
     runs-on: ubuntu-latest
-    needs: integration
+    needs:
+      - integration-ubuntu-x64
+      - integration-ubuntu-arm64
+      - integration-macos-x64
+      - integration-macos-arm64
+      - integration-windows-x64
+      - integration-windows-arm64
     if: ${{ always() }}
     permissions:
       contents: write
