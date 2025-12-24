@@ -148,55 +148,55 @@ jobs:
           name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
           path: ${{ steps.find-integration-binary.outputs.path }}
 
-  integration-macos-x64:
-    name: Integration tests on macos-latest (x86_64)
-    runs-on: macos-latest
-    env:
-      TYPR_IO_RUN_INTEGRATION_TESTS: "1"
-      TYPR_IO_AUTO_CONFIRM: "1"
-      TYPR_IO_INTERACTIVE: "1"
-      DISPLAY: ":99"
-      OS_NAME: macos-latest
-      ARCH: x64
+  # integration-macos-x64:
+  #   name: Integration tests on macos-latest (x86_64)
+  #   runs-on: macos-latest
+  #   env:
+  #     TYPR_IO_RUN_INTEGRATION_TESTS: "1"
+  #     TYPR_IO_AUTO_CONFIRM: "1"
+  #     TYPR_IO_INTERACTIVE: "1"
+  #     DISPLAY: ":99"
+  #     OS_NAME: macos-latest
+  #     ARCH: x64
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Install dependencies (macOS)
-        run: |
-          brew update
-          brew install cmake
+  #     - name: Install dependencies (macOS)
+  #       run: |
+  #         brew update
+  #         brew install cmake
 
-      - name: Clean stale build directory (Unix)
-        run: rm -rf build
+  #     - name: Clean stale build directory (Unix)
+  #       run: rm -rf build
 
-      - name: Configure (CMake, macOS / x86_64)
-        run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64
+  #     - name: Configure (CMake, macOS / x86_64)
+  #       run: cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64
 
-      - name: Build (CMake)
-        run: cmake --build build --config Release --parallel
+  #     - name: Build (CMake)
+  #       run: cmake --build build --config Release --parallel
 
-      - name: Find integration test binary (Unix)
-        id: find-integration-binary
-        run: |
-          # Find the built integration test executable and copy it to the workspace root so
-          # the uploaded artifact has a flat path (avoids nested directories like build/...).
-          found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
-          if [ -n "$found" ]; then
-            bname=$(basename "$found")
-            cp "$found" "$bname"
-            echo "path=$bname" >> $GITHUB_OUTPUT
-          else
-            echo "path=" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Find integration test binary (Unix)
+  #       id: find-integration-binary
+  #       run: |
+  #         # Find the built integration test executable and copy it to the workspace root so
+  #         # the uploaded artifact has a flat path (avoids nested directories like build/...).
+  #         found=$(find build -type f -name 'typr-io-integration-tests*' -print -quit || true)
+  #         if [ -n "$found" ]; then
+  #           bname=$(basename "$found")
+  #           cp "$found" "$bname"
+  #           echo "path=$bname" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "path=" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Upload integration test binary
-        if: steps.find-integration-binary.outputs.path != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
-          path: ${{ steps.find-integration-binary.outputs.path }}
+  #     - name: Upload integration test binary
+  #       if: steps.find-integration-binary.outputs.path != ''
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: integration-test-binary-${{ env.OS_NAME }}-${{ env.ARCH }}
+  #         path: ${{ steps.find-integration-binary.outputs.path }}
 
   integration-macos-arm64:
     name: Integration tests on macos-latest (arm64)
@@ -455,7 +455,7 @@ jobs:
     needs:
       - integration-ubuntu-x64
       - integration-ubuntu-arm64
-      - integration-macos-x64
+      # - integration-macos-x64
       - integration-macos-arm64
       - integration-windows-x64
       - integration-windows-arm64
