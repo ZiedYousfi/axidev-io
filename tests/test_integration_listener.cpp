@@ -88,16 +88,31 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
     auto cb = [&](char32_t cp, Key key, Modifier /*mods*/, bool pressed) {
       // Collect characters on key release (pressed == false) to better match
       // the character delivered to the terminal/STDIN on most platforms.
-      if (pressed)
+      if (pressed) {
+        TYPR_IO_LOG_DEBUG("Listener test cb: ignoring press event key=%s cp=%u",
+                          keyToString(key).c_str(), static_cast<unsigned>(cp));
         return;
+      }
       std::lock_guard<std::mutex> lk(mtx);
       if (cp != 0) {
         appendUtf8(observed, cp);
+        TYPR_IO_LOG_DEBUG(
+            "Listener test cb: appended cp=%u key=%s observed='%s'",
+            static_cast<unsigned>(cp), keyToString(key).c_str(),
+            observed.c_str());
       } else if (key == Key::Backspace) {
         popLastUtf8Char(observed);
+        TYPR_IO_LOG_DEBUG("Listener test cb: backspace - observed='%s'",
+                          observed.c_str());
       } else if (key == Key::Enter) {
         saw_enter = true;
+        TYPR_IO_LOG_DEBUG("Listener test cb: enter - observed='%s'",
+                          observed.c_str());
         cv.notify_one();
+      } else {
+        TYPR_IO_LOG_DEBUG(
+            "Listener test cb: non-printable key=%s cp=0 observed='%s'",
+            keyToString(key).c_str(), observed.c_str());
       }
     };
 
@@ -153,16 +168,31 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
     Listener listener;
     auto cb = [&](char32_t cp, Key key, Modifier /*mods*/, bool pressed) {
       // Use key release events to observe characters and edits.
-      if (pressed)
+      if (pressed) {
+        TYPR_IO_LOG_DEBUG("Listener test cb: ignoring press event key=%s cp=%u",
+                          keyToString(key).c_str(), static_cast<unsigned>(cp));
         return;
+      }
       std::lock_guard<std::mutex> lk(mtx);
       if (cp != 0) {
         appendUtf8(observed, cp);
+        TYPR_IO_LOG_DEBUG(
+            "Listener test cb: appended cp=%u key=%s observed='%s'",
+            static_cast<unsigned>(cp), keyToString(key).c_str(),
+            observed.c_str());
       } else if (key == Key::Backspace) {
         popLastUtf8Char(observed);
+        TYPR_IO_LOG_DEBUG("Listener test cb: backspace - observed='%s'",
+                          observed.c_str());
       } else if (key == Key::Enter) {
         saw_enter = true;
+        TYPR_IO_LOG_DEBUG("Listener test cb: enter - observed='%s'",
+                          observed.c_str());
         cv.notify_one();
+      } else {
+        TYPR_IO_LOG_DEBUG(
+            "Listener test cb: non-printable key=%s cp=0 observed='%s'",
+            keyToString(key).c_str(), observed.c_str());
       }
     };
 
@@ -215,16 +245,31 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
     auto cb = [&](char32_t cp, Key key, Modifier /*mods*/, bool pressed) {
       // Prefer release events for observed characters to avoid mismatches
       // between low-level hook timing and terminal input.
-      if (pressed)
+      if (pressed) {
+        TYPR_IO_LOG_DEBUG("Listener test cb: ignoring press event key=%s cp=%u",
+                          keyToString(key).c_str(), static_cast<unsigned>(cp));
         return;
+      }
       std::lock_guard<std::mutex> lk(mtx);
       if (cp != 0) {
         appendUtf8(observed, cp);
+        TYPR_IO_LOG_DEBUG(
+            "Listener test cb: appended cp=%u key=%s observed='%s'",
+            static_cast<unsigned>(cp), keyToString(key).c_str(),
+            observed.c_str());
       } else if (key == Key::Backspace) {
         popLastUtf8Char(observed);
+        TYPR_IO_LOG_DEBUG("Listener test cb: backspace - observed='%s'",
+                          observed.c_str());
       } else if (key == Key::Enter) {
         saw_enter = true;
+        TYPR_IO_LOG_DEBUG("Listener test cb: enter - observed='%s'",
+                          observed.c_str());
         cv.notify_one();
+      } else {
+        TYPR_IO_LOG_DEBUG(
+            "Listener test cb: non-printable key=%s cp=0 observed='%s'",
+            keyToString(key).c_str(), observed.c_str());
       }
     };
 

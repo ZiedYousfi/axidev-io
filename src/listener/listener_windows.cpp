@@ -276,6 +276,16 @@ private:
   // Reverse map VK -> Key
   std::unordered_map<WORD, Key> vkToKey;
 
+  // Debounce & release handling (works on the hook thread only).
+  // - Record the last codepoint seen on press to use as a fallback on release
+  //   when the release event lacks a unicode output.
+  // - Debounce rapid duplicate releases (same vk+cp+mods within a short
+  //   interval) to avoid emitting duplicate characters to consumers.
+  std::unordered_map<WORD, char32_t> lastPressCp;
+  std::unordered_map<WORD, std::chrono::steady_clock::time_point>
+      lastReleaseTime;
+  std::unordered_map<WORD, std::pair<char32_t, Modifier>> lastReleaseSig;
+
   // The hook proc needs to locate the current instance; allow a single
   // active instance via an atomic pointer. (Simple and practical for the app.)
   static std::atomic<Impl *> s_instance;
@@ -364,13 +374,101 @@ private:
 
     // Capture modifiers once and reuse them
     Modifier mods = deriveModifiers();
+
+    // Map to textual key name for logging
+    std::string keyName = keyToString(mappedKey);
+
+    // Treat Enter and Backspace as control keys (non-printable). If we pass a
+    // non-zero codepoint for these keys the consumer callback will append that
+    // control character into the observed string rather than handling the
+    // key event (e.g., treating Enter as a terminator). Clear the codepoint
+    // so callers can react to the logical key event instead.
+    if (mappedKey == Key::Enter || mappedKey == Key::Backspace) {
+      codepoint = 0;
+    }
+
+    // Handle a couple of platform quirks observed on Windows:
+    //  1) Some release events can be delivered multiple times for the same vk.
+    //     Debounce rapid duplicate releases to avoid emitting duplicate
+    //     characters to the consumer.
+    //  2) In some cases the release event can lack a Unicode output (ret == 0).
+    //     Cache the last press codepoint and use it as a fallback for the
+    //     release so the character stream aligns with what applications see.
+    static constexpr std::chrono::milliseconds kReleaseDebounceMs{50};
+
+    if (pressed) {
+      // On press, remember the unicode output (if any) for potential use on
+      // the paired release event.
+      if (codepoint != 0) {
+        lastPressCp[vk] = codepoint;
+      } else {
+        // Clear any stale entry for this vk when press does not produce
+        // a unicode character (e.g., modifiers).
+        lastPressCp.erase(vk);
+      }
+    } else {
+      // On release, prefer using the cached press codepoint if the release
+      // did not produce a unicode character. This helps align the character
+      // stream with what applications/terminals see. Do not override control
+      // keys (Enter/Backspace) which are intentionally cleared above.
+      if (codepoint == 0 && mappedKey != Key::Enter &&
+          mappedKey != Key::Backspace) {
+        auto cpIt = lastPressCp.find(vk);
+        if (cpIt != lastPressCp.end()) {
+          codepoint = cpIt->second;
+          if (output_debug_enabled()) {
+            TYPR_IO_LOG_DEBUG(
+                "Listener (Windows): using last-press cp=%u for release vk=%u",
+                static_cast<unsigned>(codepoint), static_cast<unsigned>(vk));
+          }
+        }
+      }
+
+      // On release, debounce rapid duplicates coming from the system.
+      auto now = std::chrono::steady_clock::now();
+      auto rtIt = lastReleaseTime.find(vk);
+      auto sigIt = lastReleaseSig.find(vk);
+      if (rtIt != lastReleaseTime.end() && sigIt != lastReleaseSig.end()) {
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - rtIt->second);
+        if (elapsed < kReleaseDebounceMs && sigIt->second.first == codepoint &&
+            sigIt->second.second == mods) {
+          if (output_debug_enabled()) {
+            TYPR_IO_LOG_DEBUG("Listener (Windows): ignoring duplicate release "
+                              "(same cp+mods) for vk=%u key=%s cp=%u mods=%u",
+                              static_cast<unsigned>(vk), keyName.c_str(),
+                              static_cast<unsigned>(codepoint),
+                              static_cast<unsigned>(mods));
+          }
+          // Update timestamp & signature so subsequent quick duplicates remain
+          // debounced.
+          lastReleaseTime[vk] = now;
+          lastReleaseSig[vk] = std::make_pair(codepoint, mods);
+          // We've handled the release; clear cached press cp so it won't be
+          // accidentally reused later.
+          lastPressCp.erase(vk);
+          return;
+        }
+      }
+
+      // Not a duplicate matching the last cp+mods -> record the new
+      // signature/time.
+      lastReleaseTime[vk] = now;
+      lastReleaseSig[vk] = std::make_pair(codepoint, mods);
+
+      // We've handled the release, clear the cached press codepoint so we
+      // don't accidentally reuse it for future, unrelated events.
+      lastPressCp.erase(vk);
+    }
+
     invokeCallback(codepoint, mappedKey, mods, pressed);
 
-    std::string keyName = keyToString(mappedKey);
-    TYPR_IO_LOG_DEBUG("Listener (Windows) %s: vk=%u key=%s cp=%u mods=%u",
-                      pressed ? "press" : "release", static_cast<unsigned>(vk),
-                      keyName.c_str(), static_cast<unsigned>(codepoint),
-                      static_cast<unsigned>(mods));
+    TYPR_IO_LOG_DEBUG(
+        "Listener (Windows) %s: vk=%u sc=%u flags=%u key=%s cp=%u mods=%u",
+        pressed ? "press" : "release", static_cast<unsigned>(vk),
+        static_cast<unsigned>(kbd->scanCode), static_cast<unsigned>(kbd->flags),
+        keyName.c_str(), static_cast<unsigned>(codepoint),
+        static_cast<unsigned>(mods));
   }
 
   // Determine modifiers using GetKeyState
