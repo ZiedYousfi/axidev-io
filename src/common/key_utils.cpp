@@ -212,6 +212,35 @@ const std::vector<std::pair<Key, std::string>> &keyStringPairs() {
       {Key::Bar, "Bar"},
       {Key::LessThan, "LessThan"},
       {Key::GreaterThan, "GreaterThan"},
+      // ASCII control canonical names (C0 / DEL)
+      {Key::AsciiNUL, "NUL"},
+      {Key::AsciiSOH, "SOH"},
+      {Key::AsciiSTX, "STX"},
+      {Key::AsciiETX, "ETX"},
+      {Key::AsciiEOT, "EOT"},
+      {Key::AsciiENQ, "ENQ"},
+      {Key::AsciiACK, "ACK"},
+      {Key::AsciiBell, "Bell"},
+      {Key::AsciiVT, "VT"},
+      {Key::AsciiFF, "FF"},
+      {Key::AsciiSO, "SO"},
+      {Key::AsciiSI, "SI"},
+      {Key::AsciiDLE, "DLE"},
+      {Key::AsciiDC1, "DC1"},
+      {Key::AsciiDC2, "DC2"},
+      {Key::AsciiDC3, "DC3"},
+      {Key::AsciiDC4, "DC4"},
+      {Key::AsciiNAK, "NAK"},
+      {Key::AsciiSYN, "SYN"},
+      {Key::AsciiETB, "ETB"},
+      {Key::AsciiCAN, "CAN"},
+      {Key::AsciiEM, "EM"},
+      {Key::AsciiSUB, "SUB"},
+      {Key::AsciiFS, "FS"},
+      {Key::AsciiGS, "GS"},
+      {Key::AsciiRS, "RS"},
+      {Key::AsciiUS, "US"},
+      {Key::AsciiDEL, "DEL"},
   };
   return pairs;
 }
@@ -282,6 +311,43 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
 
     // Single-character aliases for punctuation / shifted characters.
     rev.emplace(" ", Key::Space);
+    rev.emplace("\t", Key::Tab);
+
+    // ASCII control single-character mappings: map raw control bytes to
+    // a logical `Key` when observed as an input character.
+    rev.emplace("\x00", Key::AsciiNUL);
+    rev.emplace("\x01", Key::AsciiSOH);
+    rev.emplace("\x02", Key::AsciiSTX);
+    rev.emplace("\x03", Key::AsciiETX);
+    rev.emplace("\x04", Key::AsciiEOT);
+    rev.emplace("\x05", Key::AsciiENQ);
+    rev.emplace("\x06", Key::AsciiACK);
+    rev.emplace("\x07", Key::AsciiBell);
+    rev.emplace("\x08", Key::Backspace);
+    rev.emplace("\x09", Key::Tab);
+    rev.emplace("\x0A", Key::Enter);
+    rev.emplace("\x0B", Key::AsciiVT);
+    rev.emplace("\x0C", Key::AsciiFF);
+    rev.emplace("\x0D", Key::Enter);
+    rev.emplace("\x0E", Key::AsciiSO);
+    rev.emplace("\x0F", Key::AsciiSI);
+    rev.emplace("\x10", Key::AsciiDLE);
+    rev.emplace("\x11", Key::AsciiDC1);
+    rev.emplace("\x12", Key::AsciiDC2);
+    rev.emplace("\x13", Key::AsciiDC3);
+    rev.emplace("\x14", Key::AsciiDC4);
+    rev.emplace("\x15", Key::AsciiNAK);
+    rev.emplace("\x16", Key::AsciiSYN);
+    rev.emplace("\x17", Key::AsciiETB);
+    rev.emplace("\x18", Key::AsciiCAN);
+    rev.emplace("\x19", Key::AsciiEM);
+    rev.emplace("\x1A", Key::AsciiSUB);
+    rev.emplace("\x1B", Key::Escape);
+    rev.emplace("\x1C", Key::AsciiFS);
+    rev.emplace("\x1D", Key::AsciiGS);
+    rev.emplace("\x1E", Key::AsciiRS);
+    rev.emplace("\x1F", Key::AsciiUS);
+    rev.emplace("\x7F", Key::Delete);
 
     // Map single-character symbols to the physical/logical keys users
     // commonly expect on US-style layouts (e.g., '@' is Shift+Num2).
@@ -335,6 +401,19 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
     rev.emplace("gt", Key::GreaterThan);
     rev.emplace("less", Key::LessThan);
     rev.emplace("greater", Key::GreaterThan);
+    // ASCII textual aliases
+    rev.emplace("nul", Key::AsciiNUL);
+    rev.emplace("bell", Key::AsciiBell);
+    rev.emplace("vt", Key::AsciiVT);
+    rev.emplace("ff", Key::AsciiFF);
+    rev.emplace("dle", Key::AsciiDLE);
+    rev.emplace("sub", Key::AsciiSUB);
+    rev.emplace("can", Key::AsciiCAN);
+    rev.emplace("fs", Key::AsciiFS);
+    rev.emplace("gs", Key::AsciiGS);
+    rev.emplace("rs", Key::AsciiRS);
+    rev.emplace("us", Key::AsciiUS);
+    rev.emplace("del", Key::AsciiDEL);
 
     // Numeric keypad aliases (numpadX is already present via canonical mapping,
     // but also allow \"kpX\" prefixes that some users might use).

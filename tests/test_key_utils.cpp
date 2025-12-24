@@ -142,7 +142,28 @@ TEST_CASE("Recognizes helpful aliases / synonyms", "[key_utils][aliases]") {
   REQUIRE(stringToKey(" ") == Key::Space);
   REQUIRE(stringToKey("\t") == Key::Tab);
 }
-
+TEST_CASE("Recognizes ASCII control inputs", "[key_utils][ascii]") {
+  TYPR_IO_LOG_INFO("test_key_utils: ascii controls start");
+  // Control characters commonly observed in terminal / listener input.
+  REQUIRE(stringToKey("\x08") == Key::Backspace);
+  REQUIRE(stringToKey("\x03") == Key::AsciiETX);
+  REQUIRE(stringToKey("\x1B") == Key::Escape);
+  REQUIRE(stringToKey("\x1D") == Key::AsciiGS);
+  REQUIRE(stringToKey("\x1C") == Key::AsciiFS);
+  REQUIRE(stringToKey("\x1F") == Key::AsciiUS);
+  REQUIRE(stringToKey("\x1E") == Key::AsciiRS);
+  REQUIRE(stringToKey("\x10") == Key::AsciiDLE);
+  REQUIRE(stringToKey("\x05") == Key::AsciiENQ);
+  REQUIRE(stringToKey("\x01") == Key::AsciiSOH);
+  REQUIRE(stringToKey("\x0B") == Key::AsciiVT);
+  REQUIRE(stringToKey("\x0C") == Key::AsciiFF);
+  REQUIRE(stringToKey("\x04") == Key::AsciiEOT);
+  REQUIRE(stringToKey("\x7F") == Key::Delete);
+  // Common newline/whitespace control mappings
+  REQUIRE(stringToKey("\n") == Key::Enter);
+  REQUIRE(stringToKey("\r") == Key::Enter);
+  REQUIRE(stringToKey("\t") == Key::Tab);
+}
 TEST_CASE("Handles invalid and edge-case inputs", "[key_utils][edge]") {
   TYPR_IO_LOG_INFO("test_key_utils: edge-case inputs start");
   REQUIRE(stringToKey("NotAKey") == Key::Unknown);

@@ -196,6 +196,8 @@ enum class Key : uint16_t {
   Slash = 134,
 
   // Additional symbol keys (useful to represent shifted characters explicitly)
+  // Shifted / symbol characters (useful to represent shifted characters
+  // explicitly)
   At = 135,
   Hashtag = 136,
   Exclamation = 137,
@@ -214,6 +216,45 @@ enum class Key : uint16_t {
   Bar = 150,
   LessThan = 151,
   GreaterThan = 152,
+
+  // ASCII control characters (C0 controls 0x00-0x1F) and DEL (0x7F).
+  // These provide canonical enum values for raw ASCII control bytes (for
+  // example, '\x03' -> ETX). Where a logical key already exists (e.g.,
+  // Backspace, Tab, Enter, Escape, Delete) the ASCII name is aliased to the
+  // existing logical key to preserve canonical names and interoperability.
+  AsciiNUL = 160,             // 0x00
+  AsciiSOH = 161,             // 0x01
+  AsciiSTX = 162,             // 0x02
+  AsciiETX = 163,             // 0x03
+  AsciiEOT = 164,             // 0x04
+  AsciiENQ = 165,             // 0x05
+  AsciiACK = 166,             // 0x06
+  AsciiBell = 167,            // 0x07 (BEL)
+  AsciiBackspace = Backspace, // 0x08 (BS)
+  AsciiTab = Tab,             // 0x09 (HT)
+  AsciiLF = Enter,            // 0x0A (LF) - mapped to Enter
+  AsciiVT = 171,              // 0x0B (VT)
+  AsciiFF = 172,              // 0x0C (FF)
+  AsciiCR = Enter,            // 0x0D (CR) - mapped to Enter
+  AsciiSO = 174,              // 0x0E (SO)
+  AsciiSI = 175,              // 0x0F (SI)
+  AsciiDLE = 176,             // 0x10 (DLE)
+  AsciiDC1 = 177,             // 0x11 (DC1)
+  AsciiDC2 = 178,             // 0x12 (DC2)
+  AsciiDC3 = 179,             // 0x13 (DC3)
+  AsciiDC4 = 180,             // 0x14 (DC4)
+  AsciiNAK = 181,             // 0x15 (NAK)
+  AsciiSYN = 182,             // 0x16 (SYN)
+  AsciiETB = 183,             // 0x17 (ETB)
+  AsciiCAN = 184,             // 0x18 (CAN)
+  AsciiEM = 185,              // 0x19 (EM)
+  AsciiSUB = 186,             // 0x1A (SUB)
+  AsciiEscape = Escape,       // 0x1B (ESC)
+  AsciiFS = 188,              // 0x1C (FS)
+  AsciiGS = 189,              // 0x1D (GS)
+  AsciiRS = 190,              // 0x1E (RS)
+  AsciiUS = 191,              // 0x1F (US)
+  AsciiDEL = Delete,          // 0x7F (DEL)
 };
 
 // Modifier bitmask (use enum class for type safety but provide bit ops).
