@@ -13,6 +13,7 @@
 #include <typr-io/log.hpp>
 #include <unistd.h>
 #include <unordered_map>
+#include <xkbcommon/xkbcommon.h>
 
 namespace typr::io {
 
@@ -21,6 +22,133 @@ namespace {
 // Per-instance key maps are preferred (layout-aware discovery or future
 // runtime overrides). The uinput backend initializes a per-Impl map in
 // its constructor via Impl::initKeyMap() to mirror the macOS style.
+//
+// We use xkbcommon to perform a layout-aware scan of physical keycodes
+// (mirroring the Windows/macOS approach of probing physical scan codes
+// and mapping them via the active layout). The helper below mirrors the
+// listener's keysym -> Key mapping logic so that discovered mappings are
+// consistent with what the listener reports.
+static Key mapKeysymToKey(xkb_keysym_t sym) {
+  // Quick alphabetic mapping (lowercase and uppercase)
+  if (sym >= XKB_KEY_a && sym <= XKB_KEY_z) {
+    return static_cast<Key>(static_cast<int>(Key::A) + (sym - XKB_KEY_a));
+  }
+  if (sym >= XKB_KEY_A && sym <= XKB_KEY_Z) {
+    return static_cast<Key>(static_cast<int>(Key::A) + (sym - XKB_KEY_A));
+  }
+
+  // Top-row numbers
+  if (sym >= XKB_KEY_0 && sym <= XKB_KEY_9) {
+    return static_cast<Key>(static_cast<int>(Key::Num0) + (sym - XKB_KEY_0));
+  }
+
+  // Function keys
+  if (sym >= XKB_KEY_F1 && sym <= XKB_KEY_F20) {
+    return static_cast<Key>(static_cast<int>(Key::F1) + (sym - XKB_KEY_F1));
+  }
+
+  // Direct mappings for common control keys
+  switch (sym) {
+  case XKB_KEY_Return:
+    return Key::Enter;
+  case XKB_KEY_BackSpace:
+    return Key::Backspace;
+  case XKB_KEY_space:
+    return Key::Space;
+  case XKB_KEY_Tab:
+    return Key::Tab;
+  case XKB_KEY_Escape:
+    return Key::Escape;
+  case XKB_KEY_Left:
+    return Key::Left;
+  case XKB_KEY_Right:
+    return Key::Right;
+  case XKB_KEY_Up:
+    return Key::Up;
+  case XKB_KEY_Down:
+    return Key::Down;
+  case XKB_KEY_Home:
+    return Key::Home;
+  case XKB_KEY_End:
+    return Key::End;
+  case XKB_KEY_Page_Up:
+    return Key::PageUp;
+  case XKB_KEY_Page_Down:
+    return Key::PageDown;
+  case XKB_KEY_Delete:
+    return Key::Delete;
+  case XKB_KEY_Insert:
+    return Key::Insert;
+  // Numpad
+  case XKB_KEY_KP_Divide:
+    return Key::NumpadDivide;
+  case XKB_KEY_KP_Multiply:
+    return Key::NumpadMultiply;
+  case XKB_KEY_KP_Subtract:
+    return Key::NumpadMinus;
+  case XKB_KEY_KP_Add:
+    return Key::NumpadPlus;
+  case XKB_KEY_KP_Enter:
+    return Key::NumpadEnter;
+  case XKB_KEY_KP_Decimal:
+    return Key::NumpadDecimal;
+  case XKB_KEY_KP_0:
+    return Key::Numpad0;
+  case XKB_KEY_KP_1:
+    return Key::Numpad1;
+  case XKB_KEY_KP_2:
+    return Key::Numpad2;
+  case XKB_KEY_KP_3:
+    return Key::Numpad3;
+  case XKB_KEY_KP_4:
+    return Key::Numpad4;
+  case XKB_KEY_KP_5:
+    return Key::Numpad5;
+  case XKB_KEY_KP_6:
+    return Key::Numpad6;
+  case XKB_KEY_KP_7:
+    return Key::Numpad7;
+  case XKB_KEY_KP_8:
+    return Key::Numpad8;
+  case XKB_KEY_KP_9:
+    return Key::Numpad9;
+  // Common punctuation
+  case XKB_KEY_comma:
+    return Key::Comma;
+  case XKB_KEY_period:
+    return Key::Period;
+  case XKB_KEY_slash:
+    return Key::Slash;
+  case XKB_KEY_backslash:
+    return Key::Backslash;
+  case XKB_KEY_semicolon:
+    return Key::Semicolon;
+  case XKB_KEY_apostrophe:
+    return Key::Apostrophe;
+  case XKB_KEY_minus:
+    return Key::Minus;
+  case XKB_KEY_equal:
+    return Key::Equal;
+  case XKB_KEY_grave:
+    return Key::Grave;
+  case XKB_KEY_bracketleft:
+    return Key::LeftBracket;
+  case XKB_KEY_bracketright:
+    return Key::RightBracket;
+  default:
+    break;
+  }
+
+  // Try to map using the keysym name -> stringToKey as a best-effort fallback
+  char name[64] = {0};
+  if (xkb_keysym_get_name(sym, name, sizeof(name)) > 0) {
+    Key mapped = stringToKey(std::string(name));
+    if (mapped != Key::Unknown)
+      return mapped;
+  }
+
+  return Key::Unknown;
+}
 } // namespace
 
 struct Sender::Impl {
@@ -108,144 +236,190 @@ struct Sender::Impl {
   }
 
   void initKeyMap() {
-    // Populate a per-instance mapping from our Key enum to Linux keycodes.
-    // These are the same mappings as before, now owned per-Impl so that they
-    // can be adjusted at runtime if needed (layout detection, user overrides).
-    keyMap = {
-        // Letters
-        {Key::A, KEY_A},
-        {Key::B, KEY_B},
-        {Key::C, KEY_C},
-        {Key::D, KEY_D},
-        {Key::E, KEY_E},
-        {Key::F, KEY_F},
-        {Key::G, KEY_G},
-        {Key::H, KEY_H},
-        {Key::I, KEY_I},
-        {Key::J, KEY_J},
-        {Key::K, KEY_K},
-        {Key::L, KEY_L},
-        {Key::M, KEY_M},
-        {Key::N, KEY_N},
-        {Key::O, KEY_O},
-        {Key::P, KEY_P},
-        {Key::Q, KEY_Q},
-        {Key::R, KEY_R},
-        {Key::S, KEY_S},
-        {Key::T, KEY_T},
-        {Key::U, KEY_U},
-        {Key::V, KEY_V},
-        {Key::W, KEY_W},
-        {Key::X, KEY_X},
-        {Key::Y, KEY_Y},
-        {Key::Z, KEY_Z},
+    // Clear any existing mappings and attempt a layout-aware discovery of
+    // physical keys using xkbcommon. This mirrors how the listener resolves
+    // keys (via XKB) and mirrors the Windows/macOS approach of scanning
+    // physical keycodes and mapping them via the active layout.
+    keyMap.clear();
 
-        // Numbers (top row)
-        {Key::Num0, KEY_0},
-        {Key::Num1, KEY_1},
-        {Key::Num2, KEY_2},
-        {Key::Num3, KEY_3},
-        {Key::Num4, KEY_4},
-        {Key::Num5, KEY_5},
-        {Key::Num6, KEY_6},
-        {Key::Num7, KEY_7},
-        {Key::Num8, KEY_8},
-        {Key::Num9, KEY_9},
+    struct xkb_context *xkbCtx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+    if (xkbCtx) {
+      struct xkb_keymap *xkbKeymap = xkb_keymap_new_from_names(
+          xkbCtx, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
+      if (xkbKeymap) {
+        struct xkb_state *xkbState = xkb_state_new(xkbKeymap);
+        if (xkbState) {
+          xkb_keycode_t min = xkb_keymap_min_keycode(xkbKeymap);
+          xkb_keycode_t max = xkb_keymap_max_keycode(xkbKeymap);
+          for (xkb_keycode_t xkbKey = min; xkbKey <= max; ++xkbKey) {
+            xkb_keysym_t sym = xkb_state_key_get_one_sym(xkbState, xkbKey);
+            if (sym == XKB_KEY_NoSymbol)
+              continue;
+            Key mapped = mapKeysymToKey(sym);
+            if (mapped == Key::Unknown)
+              continue;
 
-        // Function keys
-        {Key::F1, KEY_F1},
-        {Key::F2, KEY_F2},
-        {Key::F3, KEY_F3},
-        {Key::F4, KEY_F4},
-        {Key::F5, KEY_F5},
-        {Key::F6, KEY_F6},
-        {Key::F7, KEY_F7},
-        {Key::F8, KEY_F8},
-        {Key::F9, KEY_F9},
-        {Key::F10, KEY_F10},
-        {Key::F11, KEY_F11},
-        {Key::F12, KEY_F12},
-        {Key::F13, KEY_F13},
-        {Key::F14, KEY_F14},
-        {Key::F15, KEY_F15},
-        {Key::F16, KEY_F16},
-        {Key::F17, KEY_F17},
-        {Key::F18, KEY_F18},
-        {Key::F19, KEY_F19},
-        {Key::F20, KEY_F20},
+            // libinput provides evdev keycodes; xkbcommon uses an offset of
+            // 8. When sending via uinput we need the evdev keycode (the same
+            // numeric values as KEY_* constants).
+            int evdevCode = static_cast<int>(xkbKey - 8);
+            if (evdevCode > 0) {
+              if (keyMap.find(mapped) == keyMap.end()) {
+                keyMap[mapped] = evdevCode;
+              }
+            }
+          }
+          xkb_state_unref(xkbState);
+        } else {
+          TYPR_IO_LOG_ERROR("Sender (uinput): xkb_state_new() failed");
+        }
+        xkb_keymap_unref(xkbKeymap);
+      } else {
+        TYPR_IO_LOG_ERROR(
+            "Sender (uinput): xkb_keymap_new_from_names() failed");
+      }
+      xkb_context_unref(xkbCtx);
+    } else {
+      TYPR_IO_LOG_ERROR("Sender (uinput): xkb_context_new() failed");
+    }
 
-        // Control
-        {Key::Enter, KEY_ENTER},
-        {Key::Escape, KEY_ESC},
-        {Key::Backspace, KEY_BACKSPACE},
-        {Key::Tab, KEY_TAB},
-        {Key::Space, KEY_SPACE},
-
-        // Navigation
-        {Key::Left, KEY_LEFT},
-        {Key::Right, KEY_RIGHT},
-        {Key::Up, KEY_UP},
-        {Key::Down, KEY_DOWN},
-        {Key::Home, KEY_HOME},
-        {Key::End, KEY_END},
-        {Key::PageUp, KEY_PAGEUP},
-        {Key::PageDown, KEY_PAGEDOWN},
-        {Key::Delete, KEY_DELETE},
-        {Key::Insert, KEY_INSERT},
-
-        // Numpad
-        {Key::Numpad0, KEY_KP0},
-        {Key::Numpad1, KEY_KP1},
-        {Key::Numpad2, KEY_KP2},
-        {Key::Numpad3, KEY_KP3},
-        {Key::Numpad4, KEY_KP4},
-        {Key::Numpad5, KEY_KP5},
-        {Key::Numpad6, KEY_KP6},
-        {Key::Numpad7, KEY_KP7},
-        {Key::Numpad8, KEY_KP8},
-        {Key::Numpad9, KEY_KP9},
-        {Key::NumpadDivide, KEY_KPSLASH},
-        {Key::NumpadMultiply, KEY_KPASTERISK},
-        {Key::NumpadMinus, KEY_KPMINUS},
-        {Key::NumpadPlus, KEY_KPPLUS},
-        {Key::NumpadEnter, KEY_KPENTER},
-        {Key::NumpadDecimal, KEY_KPDOT},
-
-        // Modifiers
-        {Key::ShiftLeft, KEY_LEFTSHIFT},
-        {Key::ShiftRight, KEY_RIGHTSHIFT},
-        {Key::CtrlLeft, KEY_LEFTCTRL},
-        {Key::CtrlRight, KEY_RIGHTCTRL},
-        {Key::AltLeft, KEY_LEFTALT},
-        {Key::AltRight, KEY_RIGHTALT},
-        {Key::SuperLeft, KEY_LEFTMETA},
-        {Key::SuperRight, KEY_RIGHTMETA},
-        {Key::CapsLock, KEY_CAPSLOCK},
-        {Key::NumLock, KEY_NUMLOCK},
-
-        // Misc
-        {Key::Menu, KEY_MENU},
-        {Key::Mute, KEY_MUTE},
-        {Key::VolumeDown, KEY_VOLUMEDOWN},
-        {Key::VolumeUp, KEY_VOLUMEUP},
-        {Key::MediaPlayPause, KEY_PLAYPAUSE},
-        {Key::MediaStop, KEY_STOPCD},
-        {Key::MediaNext, KEY_NEXTSONG},
-        {Key::MediaPrevious, KEY_PREVIOUSSONG},
-
-        // Punctuation / layout-dependent
-        {Key::Grave, KEY_GRAVE},
-        {Key::Minus, KEY_MINUS},
-        {Key::Equal, KEY_EQUAL},
-        {Key::LeftBracket, KEY_LEFTBRACE},
-        {Key::RightBracket, KEY_RIGHTBRACE},
-        {Key::Backslash, KEY_BACKSLASH},
-        {Key::Semicolon, KEY_SEMICOLON},
-        {Key::Apostrophe, KEY_APOSTROPHE},
-        {Key::Comma, KEY_COMMA},
-        {Key::Period, KEY_DOT},
-        {Key::Slash, KEY_SLASH},
+    // Fallback explicit mappings for common non-printable keys / modifiers
+    auto setIfMissing = [this](Key k, int v) {
+      if (this->keyMap.find(k) == this->keyMap.end())
+        this->keyMap[k] = v;
     };
+
+    // Common keys
+    setIfMissing(Key::Space, KEY_SPACE);
+    setIfMissing(Key::Enter, KEY_ENTER);
+    setIfMissing(Key::Tab, KEY_TAB);
+    setIfMissing(Key::Backspace, KEY_BACKSPACE);
+    setIfMissing(Key::Delete, KEY_DELETE);
+    setIfMissing(Key::Escape, KEY_ESC);
+    setIfMissing(Key::Left, KEY_LEFT);
+    setIfMissing(Key::Right, KEY_RIGHT);
+    setIfMissing(Key::Up, KEY_UP);
+    setIfMissing(Key::Down, KEY_DOWN);
+    setIfMissing(Key::Home, KEY_HOME);
+    setIfMissing(Key::End, KEY_END);
+    setIfMissing(Key::PageUp, KEY_PAGEUP);
+    setIfMissing(Key::PageDown, KEY_PAGEDOWN);
+
+    // Modifiers
+    setIfMissing(Key::ShiftLeft, KEY_LEFTSHIFT);
+    setIfMissing(Key::ShiftRight, KEY_RIGHTSHIFT);
+    setIfMissing(Key::CtrlLeft, KEY_LEFTCTRL);
+    setIfMissing(Key::CtrlRight, KEY_RIGHTCTRL);
+    setIfMissing(Key::AltLeft, KEY_LEFTALT);
+    setIfMissing(Key::AltRight, KEY_RIGHTALT);
+    setIfMissing(Key::SuperLeft, KEY_LEFTMETA);
+    setIfMissing(Key::SuperRight, KEY_RIGHTMETA);
+    setIfMissing(Key::CapsLock, KEY_CAPSLOCK);
+    setIfMissing(Key::NumLock, KEY_NUMLOCK);
+
+    // Function keys
+    setIfMissing(Key::F1, KEY_F1);
+    setIfMissing(Key::F2, KEY_F2);
+    setIfMissing(Key::F3, KEY_F3);
+    setIfMissing(Key::F4, KEY_F4);
+    setIfMissing(Key::F5, KEY_F5);
+    setIfMissing(Key::F6, KEY_F6);
+    setIfMissing(Key::F7, KEY_F7);
+    setIfMissing(Key::F8, KEY_F8);
+    setIfMissing(Key::F9, KEY_F9);
+    setIfMissing(Key::F10, KEY_F10);
+    setIfMissing(Key::F11, KEY_F11);
+    setIfMissing(Key::F12, KEY_F12);
+    setIfMissing(Key::F13, KEY_F13);
+    setIfMissing(Key::F14, KEY_F14);
+    setIfMissing(Key::F15, KEY_F15);
+    setIfMissing(Key::F16, KEY_F16);
+    setIfMissing(Key::F17, KEY_F17);
+    setIfMissing(Key::F18, KEY_F18);
+    setIfMissing(Key::F19, KEY_F19);
+    setIfMissing(Key::F20, KEY_F20);
+
+    // Letters fallback
+    setIfMissing(Key::A, KEY_A);
+    setIfMissing(Key::B, KEY_B);
+    setIfMissing(Key::C, KEY_C);
+    setIfMissing(Key::D, KEY_D);
+    setIfMissing(Key::E, KEY_E);
+    setIfMissing(Key::F, KEY_F);
+    setIfMissing(Key::G, KEY_G);
+    setIfMissing(Key::H, KEY_H);
+    setIfMissing(Key::I, KEY_I);
+    setIfMissing(Key::J, KEY_J);
+    setIfMissing(Key::K, KEY_K);
+    setIfMissing(Key::L, KEY_L);
+    setIfMissing(Key::M, KEY_M);
+    setIfMissing(Key::N, KEY_N);
+    setIfMissing(Key::O, KEY_O);
+    setIfMissing(Key::P, KEY_P);
+    setIfMissing(Key::Q, KEY_Q);
+    setIfMissing(Key::R, KEY_R);
+    setIfMissing(Key::S, KEY_S);
+    setIfMissing(Key::T, KEY_T);
+    setIfMissing(Key::U, KEY_U);
+    setIfMissing(Key::V, KEY_V);
+    setIfMissing(Key::W, KEY_W);
+    setIfMissing(Key::X, KEY_X);
+    setIfMissing(Key::Y, KEY_Y);
+    setIfMissing(Key::Z, KEY_Z);
+
+    // Top-row numbers (unshifted)
+    setIfMissing(Key::Num0, KEY_0);
+    setIfMissing(Key::Num1, KEY_1);
+    setIfMissing(Key::Num2, KEY_2);
+    setIfMissing(Key::Num3, KEY_3);
+    setIfMissing(Key::Num4, KEY_4);
+    setIfMissing(Key::Num5, KEY_5);
+    setIfMissing(Key::Num6, KEY_6);
+    setIfMissing(Key::Num7, KEY_7);
+    setIfMissing(Key::Num8, KEY_8);
+    setIfMissing(Key::Num9, KEY_9);
+
+    // Numpad
+    setIfMissing(Key::Numpad0, KEY_KP0);
+    setIfMissing(Key::Numpad1, KEY_KP1);
+    setIfMissing(Key::Numpad2, KEY_KP2);
+    setIfMissing(Key::Numpad3, KEY_KP3);
+    setIfMissing(Key::Numpad4, KEY_KP4);
+    setIfMissing(Key::Numpad5, KEY_KP5);
+    setIfMissing(Key::Numpad6, KEY_KP6);
+    setIfMissing(Key::Numpad7, KEY_KP7);
+    setIfMissing(Key::Numpad8, KEY_KP8);
+    setIfMissing(Key::Numpad9, KEY_KP9);
+    setIfMissing(Key::NumpadDivide, KEY_KPSLASH);
+    setIfMissing(Key::NumpadMultiply, KEY_KPASTERISK);
+    setIfMissing(Key::NumpadMinus, KEY_KPMINUS);
+    setIfMissing(Key::NumpadPlus, KEY_KPPLUS);
+    setIfMissing(Key::NumpadEnter, KEY_KPENTER);
+    setIfMissing(Key::NumpadDecimal, KEY_KPDOT);
+
+    // Misc
+    setIfMissing(Key::Menu, KEY_MENU);
+    setIfMissing(Key::Mute, KEY_MUTE);
+    setIfMissing(Key::VolumeDown, KEY_VOLUMEDOWN);
+    setIfMissing(Key::VolumeUp, KEY_VOLUMEUP);
+    setIfMissing(Key::MediaPlayPause, KEY_PLAYPAUSE);
+    setIfMissing(Key::MediaStop, KEY_STOPCD);
+    setIfMissing(Key::MediaNext, KEY_NEXTSONG);
+    setIfMissing(Key::MediaPrevious, KEY_PREVIOUSSONG);
+
+    // Punctuation / layout-dependent
+    setIfMissing(Key::Grave, KEY_GRAVE);
+    setIfMissing(Key::Minus, KEY_MINUS);
+    setIfMissing(Key::Equal, KEY_EQUAL);
+    setIfMissing(Key::LeftBracket, KEY_LEFTBRACE);
+    setIfMissing(Key::RightBracket, KEY_RIGHTBRACE);
+    setIfMissing(Key::Backslash, KEY_BACKSLASH);
+    setIfMissing(Key::Semicolon, KEY_SEMICOLON);
+    setIfMissing(Key::Apostrophe, KEY_APOSTROPHE);
+    setIfMissing(Key::Comma, KEY_COMMA);
+    setIfMissing(Key::Period, KEY_DOT);
+    setIfMissing(Key::Slash, KEY_SLASH);
+
     TYPR_IO_LOG_DEBUG("Sender (uinput): initKeyMap populated %zu entries",
                       keyMap.size());
   }
