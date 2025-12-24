@@ -3,13 +3,13 @@
 #include <typr-io/sender.hpp>
 
 #include <algorithm>
-#include <cstdlib>
-#include <fstream>
-#include <cstdio>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <errno.h>
 #include <fcntl.h>
+#include <fstream>
 #include <linux/input.h>
 #include <linux/uinput.h>
 #include <sys/ioctl.h>
@@ -137,41 +137,41 @@ struct Sender::Impl {
       TYPR_IO_LOG_ERROR("Sender (uinput): xkb_context_new() failed");
       return;
     }
-  
+
     // Try to detect the actual keyboard layout
     struct xkb_rule_names names = {nullptr, nullptr, nullptr, nullptr, nullptr};
     std::string detectedLayout = detectKeyboardLayout();
-    
+
     if (!detectedLayout.empty()) {
       names.layout = detectedLayout.c_str();
-      TYPR_IO_LOG_INFO("Sender (uinput): detected layout '%s'", 
+      TYPR_IO_LOG_INFO("Sender (uinput): detected layout '%s'",
                        detectedLayout.c_str());
     }
-  
-    xkbKeymap = xkb_keymap_new_from_names(xkbCtx, 
-        detectedLayout.empty() ? nullptr : &names, 
+
+    xkbKeymap = xkb_keymap_new_from_names(
+        xkbCtx, detectedLayout.empty() ? nullptr : &names,
         XKB_KEYMAP_COMPILE_NO_FLAGS);
-    
+
     if (!xkbKeymap) {
       TYPR_IO_LOG_ERROR("Sender (uinput): xkb_keymap_new_from_names() failed");
       return;
     }
-  
+
     xkbState = xkb_state_new(xkbKeymap);
     if (!xkbState) {
       TYPR_IO_LOG_ERROR("Sender (uinput): xkb_state_new() failed");
     }
   }
-  
+
   std::string detectKeyboardLayout() {
     // 1. Check XKB_DEFAULT_LAYOUT environment variable
     const char *envLayout = std::getenv("XKB_DEFAULT_LAYOUT");
     if (envLayout && envLayout[0] != '\0') {
-      TYPR_IO_LOG_DEBUG("Sender (uinput): layout from XKB_DEFAULT_LAYOUT: %s", 
+      TYPR_IO_LOG_DEBUG("Sender (uinput): layout from XKB_DEFAULT_LAYOUT: %s",
                         envLayout);
       return envLayout;
     }
-  
+
     // 2. Try to read /etc/default/keyboard (Debian/Ubuntu)
     std::ifstream kbdFile("/etc/default/keyboard");
     if (kbdFile.is_open()) {
@@ -183,32 +183,38 @@ struct Sender::Impl {
           if (eqPos != std::string::npos) {
             std::string value = line.substr(eqPos + 1);
             // Remove quotes and whitespace
-            value.erase(std::remove(value.begin(), value.end(), '"'), value.end());
-            value.erase(std::remove(value.begin(), value.end(), '\''), value.end());
-            value.erase(std::remove(value.begin(), value.end(), ' '), value.end());
+            value.erase(std::remove(value.begin(), value.end(), '"'),
+                        value.end());
+            value.erase(std::remove(value.begin(), value.end(), '\''),
+                        value.end());
+            value.erase(std::remove(value.begin(), value.end(), ' '),
+                        value.end());
             // Handle multiple layouts (e.g., "fr,us") - take first
             size_t commaPos = value.find(',');
             if (commaPos != std::string::npos) {
               value = value.substr(0, commaPos);
             }
             if (!value.empty()) {
-              TYPR_IO_LOG_DEBUG("Sender (uinput): layout from /etc/default/keyboard: %s", 
-                                value.c_str());
+              TYPR_IO_LOG_DEBUG(
+                  "Sender (uinput): layout from /etc/default/keyboard: %s",
+                  value.c_str());
               return value;
             }
           }
         }
       }
     }
-  
+
     // 3. Try localectl or setxkbmap -query via popen (optional, heavier)
-    FILE *pipe = popen("setxkbmap -query 2>/dev/null | grep layout | awk '{print $2}'", "r");
+    FILE *pipe = popen(
+        "setxkbmap -query 2>/dev/null | grep layout | awk '{print $2}'", "r");
     if (pipe) {
       char buffer[64];
       if (fgets(buffer, sizeof(buffer), pipe)) {
         std::string layout(buffer);
         // Remove trailing newline
-        layout.erase(std::remove(layout.begin(), layout.end(), '\n'), layout.end());
+        layout.erase(std::remove(layout.begin(), layout.end(), '\n'),
+                     layout.end());
         // Handle multiple layouts
         size_t commaPos = layout.find(',');
         if (commaPos != std::string::npos) {
@@ -216,7 +222,7 @@ struct Sender::Impl {
         }
         pclose(pipe);
         if (!layout.empty()) {
-          TYPR_IO_LOG_DEBUG("Sender (uinput): layout from setxkbmap: %s", 
+          TYPR_IO_LOG_DEBUG("Sender (uinput): layout from setxkbmap: %s",
                             layout.c_str());
           return layout;
         }
@@ -224,21 +230,28 @@ struct Sender::Impl {
         pclose(pipe);
       }
     }
-  
+
     // 4. Check LANG/LC_ALL for hints (fallback heuristic)
     const char *lang = std::getenv("LANG");
     if (lang) {
       std::string langStr(lang);
-      if (langStr.find("fr_") == 0) return "fr";
-      if (langStr.find("de_") == 0) return "de";
-      if (langStr.find("es_") == 0) return "es";
-      if (langStr.find("it_") == 0) return "it";
-      if (langStr.find("pt_") == 0) return "pt";
-      if (langStr.find("ru_") == 0) return "ru";
+      if (langStr.find("fr_") == 0)
+        return "fr";
+      if (langStr.find("de_") == 0)
+        return "de";
+      if (langStr.find("es_") == 0)
+        return "es";
+      if (langStr.find("it_") == 0)
+        return "it";
+      if (langStr.find("pt_") == 0)
+        return "pt";
+      if (langStr.find("ru_") == 0)
+        return "ru";
       // Add more as needed
     }
-  
-    TYPR_IO_LOG_DEBUG("Sender (uinput): could not detect layout, using system default");
+
+    TYPR_IO_LOG_DEBUG(
+        "Sender (uinput): could not detect layout, using system default");
     return "";
   }
 
@@ -265,9 +278,25 @@ struct Sender::Impl {
       // Get UTF-32 for unshifted state
       uint32_t unshifted = xkb_state_key_get_utf32(xkbState, xkbKey);
 
-      // Get keysym for Key enum mapping
+      // Get keysym for Key enum mapping (try unshifted, then shifted as a
+      // fallback)
       xkb_keysym_t sym = xkb_state_key_get_one_sym(xkbState, xkbKey);
       Key mappedKey = keysymToKey(sym);
+
+      // If the unshifted keysym didn't map (e.g. French AZERTY where top-row
+      // produces symbols unshifted and digits when shifted), try mapping the
+      // shifted keysym which may represent the logical key we're looking for.
+      if (mappedKey == Key::Unknown) {
+        xkb_mod_index_t shiftMod =
+            xkb_keymap_mod_get_index(xkbKeymap, XKB_MOD_NAME_SHIFT);
+        if (shiftMod != XKB_MOD_INVALID) {
+          xkb_state_update_mask(xkbState, (1u << shiftMod), 0, 0, 0, 0, 0);
+          xkb_keysym_t shiftedSym = xkb_state_key_get_one_sym(xkbState, xkbKey);
+          mappedKey = keysymToKey(shiftedSym);
+          // Reset state back to no modifiers
+          xkb_state_update_mask(xkbState, 0, 0, 0, 0, 0, 0);
+        }
+      }
 
       if (mappedKey != Key::Unknown && keyMap.find(mappedKey) == keyMap.end()) {
         keyMap[mappedKey] = evdevCode;
