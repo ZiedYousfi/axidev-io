@@ -349,19 +349,6 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
     rev.emplace("\x1F", Key::AsciiUS);
     rev.emplace("\x7F", Key::Delete);
 
-    // Map single-character symbols to the physical/logical keys users
-    // commonly expect on US-style layouts (e.g., '@' is Shift+Num2).
-    rev.emplace("@", Key::Num2);
-    rev.emplace("#", Key::Num3);
-    rev.emplace("!", Key::Num1);
-    rev.emplace("$", Key::Num4);
-    rev.emplace("%", Key::Num5);
-    rev.emplace("^", Key::Num6);
-    rev.emplace("&", Key::Num7);
-    rev.emplace("*", Key::Num8);
-    rev.emplace("(", Key::Num9);
-    rev.emplace(")", Key::Num0);
-
     // Other single-character punctuation aliases that map to existing
     // layout-dependent keys.
     rev.emplace("_", Key::Minus);
