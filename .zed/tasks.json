@@ -38,7 +38,7 @@
     "command": "sh",
     "args": [
       "-lc",
-      "cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --parallel && ./build/tests/typr-io-integration-tests",
+      "cmake -S . -B build -DTYPR_IO_BUILD_TESTS=ON -DTYPR_IO_BUILD_INTEGRATION_TESTS=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --parallel && ctest --test-dir build -R typr-io-integration-tests -C Debug --output-on-failure -V",
     ],
     "env": {
       "TYPR_IO_RUN_INTEGRATION_TESTS": "1",
