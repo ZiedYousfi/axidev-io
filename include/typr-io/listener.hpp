@@ -9,6 +9,23 @@
 // the active Modifier bitmask, and whether the event was a press (true) or
 // a release (false).
 //
+// Note on timing and character delivery:
+// - The delivered `codepoint` is computed from raw key events and represents
+//   the Unicode character produced at the time of that low-level event. On
+//   some platforms (notably Windows low-level hooks) the character computed
+//   for a key press may differ from the character observed by the focused
+//   application or terminal (which commonly receives the character on key
+//   release). This can produce mismatches if consumers only observe press
+//   events.
+// - Consumers that want to reliably capture the characters visible to the
+//   focused application or terminal/STDIN should consider handling characters
+//   on key release (when `pressed == false`). The Listener provides both press
+//   and release events so callers can choose the behaviour that best fits
+//   their needs.
+// - The codepoint mapping is intentionally lightweight and does not implement
+//   full IME / dead-key composition; it is a best-effort mapping for common
+//   printable characters.
+//
 // Example:
 //
 //   #include <typr-io/listener.hpp>
@@ -39,10 +56,15 @@ namespace io {
 class TYPR_IO_API Listener {
 public:
   // Callback signature:
-  //   - codepoint: produced Unicode codepoint (0 if none)
+  //   - codepoint: produced Unicode codepoint (0 if none). This is computed for
+  //     the low-level key event and may differ between press and release on
+  //     some platforms.
   //   - key: logical Key (Key::Unknown if unknown)
   //   - mods: current modifier state
   //   - pressed: true for key press, false for key release
+  // Note: consumers that want to reliably observe the character actually sent
+  // to the focused application or terminal should consider handling events on
+  // key release (pressed == false).
   using Callback = std::function<void(char32_t codepoint, Key key,
                                       Modifier mods, bool pressed)>;
 

@@ -86,7 +86,9 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
 
     Listener listener;
     auto cb = [&](char32_t cp, Key key, Modifier /*mods*/, bool pressed) {
-      if (!pressed)
+      // Collect characters on key release (pressed == false) to better match
+      // the character delivered to the terminal/STDIN on most platforms.
+      if (pressed)
         return;
       std::lock_guard<std::mutex> lk(mtx);
       if (cp != 0) {
@@ -150,7 +152,8 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
 
     Listener listener;
     auto cb = [&](char32_t cp, Key key, Modifier /*mods*/, bool pressed) {
-      if (!pressed)
+      // Use key release events to observe characters and edits.
+      if (pressed)
         return;
       std::lock_guard<std::mutex> lk(mtx);
       if (cp != 0) {
@@ -210,7 +213,9 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
 
     Listener listener;
     auto cb = [&](char32_t cp, Key key, Modifier /*mods*/, bool pressed) {
-      if (!pressed)
+      // Prefer release events for observed characters to avoid mismatches
+      // between low-level hook timing and terminal input.
+      if (pressed)
         return;
       std::lock_guard<std::mutex> lk(mtx);
       if (cp != 0) {

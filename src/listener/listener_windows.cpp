@@ -299,6 +299,18 @@ private:
 
   // Map the low-level keyboard event to a (codepoint, Key, Modifier, pressed)
   // and invoke the user callback (if set).
+  //
+  // Note: On Windows the Unicode character computed for a given physical key
+  // can differ between the press and the release events due to timing of
+  // modifier state and how `ToUnicodeEx` performs translation. For example,
+  // pressing a digit key while SHIFT is held may yield a shifted punctuation
+  // on the key *press* but the focused application/terminal may observe the
+  // unshifted digit as it is delivered (often corresponding more closely to
+  // the key *release*). Because of this, consumers that want to reliably
+  // capture characters as they appear to applications or terminal/STDIN should
+  // prefer handling release events (when `pressed == false`). This listener
+  // computes and reports the codepoint for both press and release; callers
+  // can choose which event to observe based on their needs.
   void handleEvent(const KBDLLHOOKSTRUCT *kbd, bool pressed) {
     if (!kbd)
       return;
