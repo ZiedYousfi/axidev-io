@@ -285,7 +285,6 @@ private:
     // Direct mappings for common control keys
     switch (sym) {
     case XKB_KEY_Return:
-    case XKB_KEY_KP_Enter:
       return Key::Enter;
     case XKB_KEY_BackSpace:
       return Key::Backspace;
