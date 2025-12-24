@@ -308,6 +308,16 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
     rev.emplace("slash", Key::Slash);
     rev.emplace("bracketleft", Key::LeftBracket);
     rev.emplace("bracketright", Key::RightBracket);
+    
+    // Single-character aliases for common symbol characters observed in inputs.
+    rev.emplace("@", Key::At);
+    rev.emplace("&", Key::Ampersand);
+    rev.emplace("(", Key::LeftParen);
+    rev.emplace(")", Key::RightParen);
+    rev.emplace("!", Key::Exclamation);
+    rev.emplace("$", Key::Dollar);
+    rev.emplace("^", Key::Caret);
+    rev.emplace("*", Key::Asterisk);
 
     // Single-character aliases for punctuation / shifted characters.
     rev.emplace(" ", Key::Space);
