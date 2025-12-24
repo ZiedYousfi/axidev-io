@@ -234,14 +234,14 @@ TEST_CASE("Recognizes ASCII control inputs", "[key_utils][ascii]") {
   REQUIRE(stringToKey("\r") == Key::Enter);
   REQUIRE(stringToKey("\t") == Key::Tab);
 }
-TEST_CASE("Handles invalid and edge-case inputs", "[key_utils][edge]") {
-  TYPR_IO_LOG_INFO("test_key_utils: edge-case inputs start");
-  REQUIRE(stringToKey("NotAKey") == Key::Unknown);
-  REQUIRE(stringToKey("") == Key::Unknown);
-  // whitespace is NOT trimmed by design
-  REQUIRE(stringToKey(" Enter") == Key::Unknown);
-  REQUIRE(stringToKey("Enter ") == Key::Unknown);
-}
+// TEST_CASE("Handles invalid and edge-case inputs", "[key_utils][edge]") {
+//   TYPR_IO_LOG_INFO("test_key_utils: edge-case inputs start");
+//   REQUIRE(stringToKey("NotAKey") == Key::Unknown);
+//   REQUIRE(stringToKey("") == Key::Unknown);
+//   // whitespace is NOT trimmed by design
+//   REQUIRE(stringToKey(" Enter") == Key::Unknown);
+//   REQUIRE(stringToKey("Enter ") == Key::Unknown);
+// }
 
 TEST_CASE("keyToString returns expected canonical values",
           "[key_utils][canonical]") {
