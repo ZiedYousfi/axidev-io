@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 using namespace typr::io;
@@ -37,6 +38,24 @@ TEST_CASE("keyToString / stringToKey roundtrip and uniqueness", "[key_utils]") {
   TYPR_IO_LOG_INFO("test_key_utils: roundtrip/uniqueness start");
   std::unordered_set<std::string> seen;
   int canonicalCount = 0;
+
+  // Precompute lowercase/uppercase canonical counts to detect case collisions
+  // (e.g., X11 / XF86 aliases like "OE" vs "oe") so the test can avoid
+  // impossible assertions when two canonical names differ only by case.
+  std::unordered_map<std::string, int> lowerCounts;
+  std::unordered_map<std::string, int> upperCounts;
+  for (unsigned j = 0; j <= 255u; ++j) {
+    Key kk = static_cast<Key>(j);
+    std::string nm = keyToString(kk);
+    if (nm == "Unknown")
+      continue;
+    ++lowerCounts[toLowerCopy(nm)];
+    std::string up = nm;
+    std::ranges::transform(up, up.begin(), [](char c) {
+      return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    });
+    ++upperCounts[up];
+  }
 
   for (unsigned i = 0; i <= 255u; ++i) {
     Key k = static_cast<Key>(i);
@@ -57,16 +76,32 @@ TEST_CASE("keyToString / stringToKey roundtrip and uniqueness", "[key_utils]") {
       auto [it, inserted] = seen.emplace(name);
       REQUIRE(inserted); // canonical names must be unique
 
-      // Lowercased canonical should map back
+      // Lowercased canonical should map back when unambiguous.
+      // If multiple canonical names collapse to the same lowercased string
+      // (for example, both \"OE\" and \"oe\" present), skip the assertion to
+      // avoid impossible-to-satisfy checks (both can't round-trip from the
+      // identical lowercased string).
       std::string lower = toLowerCopy(name);
-      REQUIRE(stringToKey(lower) == k);
+      if (lowerCounts[lower] == 1) {
+        REQUIRE(stringToKey(lower) == k);
+      } else {
+        TYPR_IO_LOG_DEBUG(
+            "Skipping lowercased roundtrip for ambiguous canonical name '%s'",
+            name.c_str());
+      }
 
-      // Uppercased canonical should also map back
+      // Uppercased canonical should also map back when unambiguous.
       std::string upper = name;
       std::ranges::transform(upper, upper.begin(), [](char c) {
         return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
       });
-      REQUIRE(stringToKey(upper) == k);
+      if (upperCounts[upper] == 1) {
+        REQUIRE(stringToKey(upper) == k);
+      } else {
+        TYPR_IO_LOG_DEBUG(
+            "Skipping uppercased roundtrip for ambiguous canonical name '%s'",
+            name.c_str());
+      }
     }
   }
 

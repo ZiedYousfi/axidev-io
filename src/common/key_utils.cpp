@@ -262,8 +262,8 @@ const std::vector<std::pair<Key, std::string>> &keyStringPairs() {
       {Key::Hiragana, "Hiragana"},
       {Key::Henkan, "Henkan"},
       {Key::Muhenkan, "Muhenkan"},
-      {Key::oe, "oe"},
       {Key::OE, "OE"},
+      {Key::oe, "oe"},
       {Key::SunProps, "SunProps"},
       {Key::SunFront, "SunFront"},
       {Key::Copy, "Copy"},
@@ -342,12 +342,10 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
   }
 
   if (rev.empty()) {
-    for (const auto &pair : keyStringPairs()) {
-      // Seed canonical mapping (lowercased)
-      rev.emplace(toLower(pair.second), pair.first);
-    }
-    TYPR_IO_LOG_DEBUG("Seeding reverse map with %zu canonical entries",
-                      keyStringPairs().size());
+    // Defer canonical seeding until after alias synonyms are added so that
+    // case-only aliases (e.g., "OE" vs "oe") aren't overwritten by a
+    // lowercase canonical entry. Canonical entries are inserted later using
+    // `emplace` to avoid clobbering helpful aliases.
 
     // Helpful aliases / synonyms
     rev.emplace("esc", Key::Escape);
@@ -578,8 +576,33 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
     rev.emplace("save", Key::Save);
     rev.emplace("documents", Key::Documents);
 
+    // Now seed canonical mappings (lowercased). Use `emplace` so we don't
+    // overwrite existing helpful alias entries (case-only collisions).
+    size_t seeded = 0;
+    for (const auto &pair : keyStringPairs()) {
+      std::string lower = toLower(pair.second);
+      auto [it, inserted] = rev.emplace(lower, pair.first);
+      if (inserted) {
+        ++seeded;
+      } else {
+        TYPR_IO_LOG_DEBUG("stringToKey: canonical lowercase '%s' collides with "
+                          "existing mapping - keeping existing",
+                          lower.c_str());
+      }
+    }
+    TYPR_IO_LOG_DEBUG(
+        "Seeding reverse map with %zu canonical entries (%zu inserted)",
+        keyStringPairs().size(), seeded);
+
     // Numeric keypad textual aliases are already seeded - leave room for
     // dynamic parsing for `KP_*` forms in the lookup logic below.
+  }
+
+  // Exact-case lookup first: prefer an exact alias match (e.g., "OE")
+  // over falling back to a case-insensitive canonical match.
+  auto itExact = rev.find(input);
+  if (itExact != rev.end()) {
+    return itExact->second;
   }
 
   std::string key = toLower(input);
