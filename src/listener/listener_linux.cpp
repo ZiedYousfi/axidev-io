@@ -14,6 +14,7 @@
 #include <poll.h>
 #include <thread>
 #include <unistd.h>
+#include <unordered_map>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -212,12 +213,22 @@ private:
     xkb_keysym_t sym = xkb_state_key_get_one_sym(xkbState, xkbKey);
     char32_t codepoint = 0;
     if (pressed) {
+      // Compute and stash the codepoint for this key so that it can be
+      // delivered on key-release events (many applications deliver the
+      // resulting character on release).
       codepoint = static_cast<char32_t>(xkb_keysym_to_utf32(sym));
+      pendingCodepoints[keycode] = codepoint;
     } else {
-      // Some platforms/applications produce characters on key release; leave
-      // as-is (we still provide the codepoint computed at press time). For
-      // simplicity we only compute on press here.
-      codepoint = 0;
+      // Deliver any codepoint we previously computed at press time for this
+      // key. This ensures callbacks observing only key-release events still
+      // receive the character that was generated when the key was pressed.
+      auto it = pendingCodepoints.find(keycode);
+      if (it != pendingCodepoints.end()) {
+        codepoint = it->second;
+        pendingCodepoints.erase(it);
+      } else {
+        codepoint = 0;
+      }
     }
 
     // Map keysym -> Key
@@ -390,6 +401,10 @@ private:
   std::atomic_bool ready{false};
   std::mutex cbMutex;
   Callback callback;
+
+  // Store unicode codepoints computed at key-press time so they can be
+  // delivered on key-release events.
+  std::unordered_map<uint32_t, char32_t> pendingCodepoints;
 
   struct libinput *li = nullptr;
   struct xkb_context *xkbCtx = nullptr;
