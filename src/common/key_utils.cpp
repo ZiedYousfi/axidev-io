@@ -262,6 +262,7 @@ const std::vector<std::pair<Key, std::string>> &keyStringPairs() {
       {Key::Hiragana, "Hiragana"},
       {Key::Henkan, "Henkan"},
       {Key::Muhenkan, "Muhenkan"},
+      {Key::oe, "oe"},
       {Key::OE, "OE"},
       {Key::SunProps, "SunProps"},
       {Key::SunFront, "SunFront"},
@@ -339,6 +340,7 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
   if (input.empty()) {
     return Key::Unknown;
   }
+
   if (rev.empty()) {
     for (const auto &pair : keyStringPairs()) {
       // Seed canonical mapping (lowercased)
@@ -543,11 +545,8 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
     rev.emplace("agrave", Key::A);
     rev.emplace("ugrave", Key::U);
     rev.emplace("ccedilla", Key::C);
-    // 'OE' is present as a canonical key (lowercased -> "oe"). Some systems
-    // emit "oe" to mean the letter 'o' rather than the ligature key; ensure
-    // that the common alias overrides the canonical mapping so "oe" maps to
-    // Key::O as tests expect.
-    rev.insert_or_assign("oe", Key::O);
+    rev.emplace("oe", Key::oe);
+    rev.emplace("OE", Key::OE);
     rev.emplace("mu", Key::Mu);
 
     // Misc control / text aliases
@@ -747,8 +746,10 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
     return Key::U;
   if (key == "ccedilla")
     return Key::C;
+  if (key == "OE")
+    return Key::OE;
   if (key == "oe")
-    return Key::O;
+    return Key::oe;
   if (key == "quotedbl")
     return Key::Quote;
   if (key == "question")
