@@ -26,12 +26,6 @@ on:
 permissions:
   contents: write
 
-# Note: the previous workflow used a single matrix job with step-level `if`
-# checks to vary behavior per platform. Split that into individual jobs below
-# (one job per OS/arch) so platform-specific logic lives in the job and is
-# easier to reason about. Each job uploads an artifact that includes both
-# the OS and the architecture so the release job can pick them up later.
-
 jobs:
   integration-ubuntu-x64:
     name: Integration tests on ubuntu-latest (x86_64)
