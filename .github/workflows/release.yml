@@ -46,11 +46,25 @@ jobs:
         run: cmake --install build --prefix dist --config Release
 
       - name: Package library (tar.gz)
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           set -e
-          TAG="${GITHUB_REF#refs/tags/}"
+          # Prefer explicit workflow_dispatch input 'version', otherwise use tag or branch name
+          TAG="${INPUT_VERSION:-}"
+          if [ -z "$TAG" ]; then
+            if echo "$GITHUB_REF" | grep -q '^refs/tags/'; then
+              TAG="${GITHUB_REF#refs/tags/}"
+            elif echo "$GITHUB_REF" | grep -q '^refs/heads/'; then
+              TAG="${GITHUB_REF#refs/heads/}"
+            else
+              TAG="${GITHUB_REF##*/}"
+            fi
+          fi
+          # Make filename-safe: replace non-alnum/._- characters with '-'
+          SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
-          tar -C dist -czf "packages/typr-io-${TAG}-linux-x86_64.tar.gz" .
+          tar -C dist -czf "packages/typr-io-${SAFE_TAG}-linux-x86_64.tar.gz" .
           ls -la packages
 
       - name: Upload release package
@@ -86,11 +100,23 @@ jobs:
         run: cmake --install build --prefix dist --config Release
 
       - name: Package library (tar.gz)
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           set -e
-          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${INPUT_VERSION:-}"
+          if [ -z "$TAG" ]; then
+            if echo "$GITHUB_REF" | grep -q '^refs/tags/'; then
+              TAG="${GITHUB_REF#refs/tags/}"
+            elif echo "$GITHUB_REF" | grep -q '^refs/heads/'; then
+              TAG="${GITHUB_REF#refs/heads/}"
+            else
+              TAG="${GITHUB_REF##*/}"
+            fi
+          fi
+          SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
-          tar -C dist -czf "packages/typr-io-${TAG}-linux-arm64.tar.gz" .
+          tar -C dist -czf "packages/typr-io-${SAFE_TAG}-linux-arm64.tar.gz" .
           ls -la packages
 
       - name: Upload release package
@@ -126,11 +152,23 @@ jobs:
         run: cmake --install build --prefix dist --config Release
 
       - name: Package library (tar.gz)
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           set -e
-          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${INPUT_VERSION:-}"
+          if [ -z "$TAG" ]; then
+            if echo "$GITHUB_REF" | grep -q '^refs/tags/'; then
+              TAG="${GITHUB_REF#refs/tags/}"
+            elif echo "$GITHUB_REF" | grep -q '^refs/heads/'; then
+              TAG="${GITHUB_REF#refs/heads/}"
+            else
+              TAG="${GITHUB_REF##*/}"
+            fi
+          fi
+          SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
-          tar -C dist -czf "packages/typr-io-${TAG}-macos-x86_64.tar.gz" .
+          tar -C dist -czf "packages/typr-io-${SAFE_TAG}-macos-x86_64.tar.gz" .
           ls -la packages
 
       - name: Upload release package
@@ -166,11 +204,23 @@ jobs:
         run: cmake --install build --prefix dist --config Release
 
       - name: Package library (tar.gz)
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           set -e
-          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${INPUT_VERSION:-}"
+          if [ -z "$TAG" ]; then
+            if echo "$GITHUB_REF" | grep -q '^refs/tags/'; then
+              TAG="${GITHUB_REF#refs/tags/}"
+            elif echo "$GITHUB_REF" | grep -q '^refs/heads/'; then
+              TAG="${GITHUB_REF#refs/heads/}"
+            else
+              TAG="${GITHUB_REF##*/}"
+            fi
+          fi
+          SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
-          tar -C dist -czf "packages/typr-io-${TAG}-macos-arm64.tar.gz" .
+          tar -C dist -czf "packages/typr-io-${SAFE_TAG}-macos-arm64.tar.gz" .
           ls -la packages
 
       - name: Upload release package
@@ -241,8 +291,21 @@ jobs:
 
       - name: Package library (zip)
         shell: pwsh
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
-          $tag = $env:GITHUB_REF -replace '^refs/tags/',''
+          $tag = $env:INPUT_VERSION
+          if (-not $tag) {
+            if ($env:GITHUB_REF -match '^refs/tags/') {
+              $tag = $env:GITHUB_REF -replace '^refs/tags/', ''
+            } elseif ($env:GITHUB_REF -match '^refs/heads/') {
+              $tag = $env:GITHUB_REF -replace '^refs/heads/', ''
+            } else {
+              $tag = ($env:GITHUB_REF -split '/')[ -1 ]
+            }
+          }
+          # sanitize: replace characters other than alnum . _ - with '-'
+          $tag = $tag -replace '[^A-Za-z0-9._-]','-'
           New-Item -ItemType Directory -Path packages -Force | Out-Null
           $dest = "packages/typr-io-$($tag)-windows-x64.zip"
           if (Test-Path $dest) { Remove-Item $dest -Force }
@@ -317,8 +380,21 @@ jobs:
 
       - name: Package library (zip)
         shell: pwsh
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
-          $tag = $env:GITHUB_REF -replace '^refs/tags/',''
+          $tag = $env:INPUT_VERSION
+          if (-not $tag) {
+            if ($env:GITHUB_REF -match '^refs/tags/') {
+              $tag = $env:GITHUB_REF -replace '^refs/tags/', ''
+            } elseif ($env:GITHUB_REF -match '^refs/heads/') {
+              $tag = $env:GITHUB_REF -replace '^refs/heads/', ''
+            } else {
+              $tag = ($env:GITHUB_REF -split '/')[ -1 ]
+            }
+          }
+          # sanitize: replace characters other than alnum . _ - with '-'
+          $tag = $tag -replace '[^A-Za-z0-9._-]','-'
           New-Item -ItemType Directory -Path packages -Force | Out-Null
           $dest = "packages/typr-io-$($tag)-windows-arm64.zip"
           if (Test-Path $dest) { Remove-Item $dest -Force }
@@ -386,9 +462,22 @@ jobs:
         if: steps.check-assets.outputs.has_assets == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF#refs/tags/}"
+          # Determine the tag to use for the release:
+          TAG="${INPUT_VERSION:-}"
+          if [ -z "$TAG" ]; then
+            if echo "$GITHUB_REF" | grep -q '^refs/tags/'; then
+              TAG="${GITHUB_REF#refs/tags/}"
+            elif echo "$GITHUB_REF" | grep -q '^refs/heads/'; then
+              TAG="${GITHUB_REF#refs/heads/}"
+            fi
+          fi
+          if [ -z "$TAG" ]; then
+            echo "No tag or version provided; skipping release creation."
+            exit 0
+          fi
           # Try to use annotated tag message as body if available, otherwise fallback to commit message
           BODY="$(git for-each-ref --format='%(contents)' "refs/tags/$TAG" 2>/dev/null || true)"
           if [ -z "$BODY" ]; then
