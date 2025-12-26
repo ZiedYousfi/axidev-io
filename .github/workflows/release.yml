@@ -311,7 +311,7 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       - name: Install to staging dir (Windows)
-        run: cmake --install build --prefix "%cd%\\dist" --config Release
+        run: cmake --install build --prefix dist --config Release
 
       - name: Package library (zip)
         shell: pwsh
@@ -416,7 +416,7 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       - name: Install to staging dir (Windows ARM64)
-        run: cmake --install build --prefix "%cd%\\dist" --config Release
+        run: cmake --install build --prefix dist --config Release
 
       - name: Package library (zip)
         shell: pwsh
