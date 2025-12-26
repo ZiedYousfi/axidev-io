@@ -64,6 +64,12 @@ jobs:
           # Make filename-safe: replace non-alnum/._- characters with '-'
           SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
+          if [ ! -d dist ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "Packaging failed: 'dist' directory not found or empty. Did 'cmake --install' run successfully?"
+            echo "Listing 'build' directory for debugging:"
+            ls -la build || true
+            exit 1
+          fi
           tar -C dist -czf "packages/typr-io-${SAFE_TAG}-linux-x86_64.tar.gz" .
           ls -la packages
 
@@ -116,6 +122,12 @@ jobs:
           fi
           SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
+          if [ ! -d dist ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "Packaging failed: 'dist' directory not found or empty. Did 'cmake --install' run successfully?"
+            echo "Listing 'build' directory for debugging:"
+            ls -la build || true
+            exit 1
+          fi
           tar -C dist -czf "packages/typr-io-${SAFE_TAG}-linux-arm64.tar.gz" .
           ls -la packages
 
@@ -168,6 +180,12 @@ jobs:
           fi
           SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
+          if [ ! -d dist ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "Packaging failed: 'dist' directory not found or empty. Did 'cmake --install' run successfully?"
+            echo "Listing 'build' directory for debugging:"
+            ls -la build || true
+            exit 1
+          fi
           tar -C dist -czf "packages/typr-io-${SAFE_TAG}-macos-x86_64.tar.gz" .
           ls -la packages
 
@@ -220,6 +238,12 @@ jobs:
           fi
           SAFE_TAG=$(printf '%s' "$TAG" | sed -E 's/[^A-Za-z0-9._-]+/-/g' | sed -E 's/^-+|-+$//g')
           mkdir -p packages
+          if [ ! -d dist ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "Packaging failed: 'dist' directory not found or empty. Did 'cmake --install' run successfully?"
+            echo "Listing 'build' directory for debugging:"
+            ls -la build || true
+            exit 1
+          fi
           tar -C dist -czf "packages/typr-io-${SAFE_TAG}-macos-arm64.tar.gz" .
           ls -la packages
 
@@ -309,6 +333,22 @@ jobs:
           New-Item -ItemType Directory -Path packages -Force | Out-Null
           $dest = "packages/typr-io-$($tag)-windows-x64.zip"
           if (Test-Path $dest) { Remove-Item $dest -Force }
+
+          # Fail early with a clear message if 'dist' is missing or empty
+          if (-not (Test-Path -LiteralPath 'dist')) {
+            Write-Error "The 'dist' directory was not found. Did the 'Install to staging dir (Windows)' step run successfully?"
+            Write-Host "Current directory contents:"
+            Get-ChildItem -Force -Recurse || $null
+            exit 1
+          }
+          $distItems = Get-ChildItem -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue
+          if (-not $distItems) {
+            Write-Error "No files were found in 'dist'. Cannot create package. Did the install step place files into 'dist'?"
+            Write-Host "Contents of 'build' (for debugging):"
+            Get-ChildItem -Path 'build' -Recurse -Force -ErrorAction SilentlyContinue || $null
+            exit 1
+          }
+
           Compress-Archive -Path "dist\\*" -DestinationPath $dest -Force
           Get-ChildItem packages
 
@@ -398,6 +438,22 @@ jobs:
           New-Item -ItemType Directory -Path packages -Force | Out-Null
           $dest = "packages/typr-io-$($tag)-windows-arm64.zip"
           if (Test-Path $dest) { Remove-Item $dest -Force }
+
+          # Fail early with a clear message if 'dist' is missing or empty
+          if (-not (Test-Path -LiteralPath 'dist')) {
+            Write-Error "The 'dist' directory was not found. Did the 'Install to staging dir (Windows ARM64)' step run successfully?"
+            Write-Host "Current directory contents:"
+            Get-ChildItem -Force -Recurse || $null
+            exit 1
+          }
+          $distItems = Get-ChildItem -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue
+          if (-not $distItems) {
+            Write-Error "No files were found in 'dist'. Cannot create package. Did the install step place files into 'dist'?"
+            Write-Host "Contents of 'build' (for debugging):"
+            Get-ChildItem -Path 'build' -Recurse -Force -ErrorAction SilentlyContinue || $null
+            exit 1
+          }
+
           Compress-Archive -Path "dist\\*" -DestinationPath $dest -Force
           Get-ChildItem packages
 
