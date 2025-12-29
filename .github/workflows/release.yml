@@ -161,7 +161,7 @@ jobs:
         with:
           platform: x64
           static: 0
-          version: 12.2.0
+          version: 13.2.0
 
       - name: Configure & Build
         shell: bash
