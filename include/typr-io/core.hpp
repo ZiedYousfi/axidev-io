@@ -12,7 +12,9 @@
 
 #include <cstdint>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <Windows.h>
+#else
 #include <chrono>
 #include <thread>
 #endif
@@ -69,7 +71,6 @@ inline const char *libraryVersion() noexcept { return TYPR_IO_VERSION; }
 inline void sleepMs(uint32_t ms) noexcept {
 #ifdef _WIN32
   // Use Windows native Sleep to avoid MinGW nanosleep64 runtime dependency
-  extern "C" __declspec(dllimport) void __stdcall Sleep(unsigned long);
   Sleep(static_cast<unsigned long>(ms));
 #else
   // On non-Windows platforms, use standard C++ sleep
