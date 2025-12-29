@@ -11,7 +11,7 @@
 #include <future>
 #include <iostream>
 #include <string>
-#include <thread>
+#include <typr-io/core.hpp>
 #include <typr-io/keyboard/sender.hpp>
 #include <typr-io/log.hpp>
 
@@ -42,7 +42,7 @@ TEST_CASE("Sender Integration Suite", "[integration]") {
               << std::endl;
 
     auto task = std::async(std::launch::async, [&sender]() {
-      std::this_thread::sleep_for(500ms);
+      typr::io::sleepMs(500);
       TYPR_IO_LOG_DEBUG("Integration test: sending taps Z W Num1 Enter");
       // Testing Z and W helps identify AZERTY vs QWERTY confusion.
       // Testing Num1 checks if we produce '1' or the shifted symbol.
@@ -76,7 +76,7 @@ TEST_CASE("Sender Integration Suite", "[integration]") {
               << std::endl;
 
     auto task = std::async(std::launch::async, [&sender]() {
-      std::this_thread::sleep_for(500ms);
+      typr::io::sleepMs(500);
       TYPR_IO_LOG_DEBUG("Integration test: holding shift and sending HELLO");
 
       sender.holdModifier(Modifier::Shift);
@@ -110,14 +110,14 @@ TEST_CASE("Sender Integration Suite", "[integration]") {
     std::cout << "[RUNNING] Testing key repeat (Holding 'X')..." << std::endl;
 
     auto task = std::async(std::launch::async, [&sender]() {
-      std::this_thread::sleep_for(500ms);
+      typr::io::sleepMs(500);
       TYPR_IO_LOG_DEBUG("Integration test: keyDown(Key::X)");
 
       sender.keyDown(Key::X);
-      std::this_thread::sleep_for(1500ms); // Hold long enough for OS repeat
+      typr::io::sleepMs(1500); // Hold long enough for OS repeat
       sender.keyUp(Key::X);
 
-      std::this_thread::sleep_for(100ms);
+      typr::io::sleepMs(100);
       sender.tap(Key::Enter);
       return true;
     });

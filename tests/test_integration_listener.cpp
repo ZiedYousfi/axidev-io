@@ -9,6 +9,7 @@
  */
 
 #include <catch2/catch_all.hpp>
+#include <typr-io/core.hpp>
 #include <typr-io/keyboard/listener.hpp>
 #include <typr-io/log.hpp>
 
@@ -16,7 +17,6 @@
 #include <iostream>
 #include <mutex>
 #include <string>
-#include <thread>
 
 using namespace typr::io::keyboard;
 using namespace std::chrono_literals;
@@ -130,7 +130,7 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
       std::unique_lock<std::mutex> lk(mtx);
       cv.wait_for(lk, 2s, [&] { return saw_enter; });
     }
-    std::this_thread::sleep_for(100ms);
+    typr::io::sleepMs(100);
 
     listener.stop();
 
@@ -209,7 +209,7 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
       std::unique_lock<std::mutex> lk(mtx);
       cv.wait_for(lk, 2s, [&] { return saw_enter; });
     }
-    std::this_thread::sleep_for(100ms);
+    typr::io::sleepMs(100);
 
     listener.stop();
 
@@ -286,7 +286,7 @@ TEST_CASE("Listener Integration Suite", "[integration]") {
       std::unique_lock<std::mutex> lk(mtx);
       cv.wait_for(lk, 2s, [&] { return saw_enter; });
     }
-    std::this_thread::sleep_for(100ms);
+    typr::io::sleepMs(100);
 
     listener.stop();
 
