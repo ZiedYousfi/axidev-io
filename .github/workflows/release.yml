@@ -18,79 +18,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-linux-x64:
-    name: Build (Linux x86_64)
+  build:
     uses: ./.github/workflows/build-reusable.yml
     with:
-      os: ubuntu-latest
-      arch: x64
-      build-type: Release
-      package-output: true
-      artifact-name-prefix: ""
-
-  build-linux-arm64:
-    name: Build (Linux arm64)
-    uses: ./.github/workflows/build-reusable.yml
-    with:
-      os: ubuntu-24.04-arm
-      arch: arm64
-      build-type: Release
-      package-output: true
-      artifact-name-prefix: ""
-
-  build-macos-x64:
-    name: Build (macOS x86_64)
-    uses: ./.github/workflows/build-reusable.yml
-    with:
-      os: macos-latest
-      arch: x86_64
-      build-type: Release
-      package-output: true
-      artifact-name-prefix: ""
-
-  build-macos-arm64:
-    name: Build (macOS arm64)
-    uses: ./.github/workflows/build-reusable.yml
-    with:
-      os: macos-latest
-      arch: arm64
-      build-type: Release
-      package-output: true
-      artifact-name-prefix: ""
-
-  build-windows-x64-mingw:
-    name: Build (Windows x64 MinGW)
-    uses: ./.github/workflows/build-reusable.yml
-    with:
-      os: windows-latest
-      arch: x64
-      build-type: Release
-      package-output: true
-      artifact-name-prefix: ""
-
-  build-windows-arm64-mingw:
-    name: Build (Windows arm64 MinGW)
-    uses: ./.github/workflows/build-reusable.yml
-    with:
-      os: windows-11-arm
-      arch: arm64
-      build-type: Release
-      package-output: true
-      mingw-version: "12.2.0"
+      matrix-json: |
+        [
+          {
+            "os": "ubuntu-latest",
+            "arch": "x64",
+            "build-type": "Release",
+            "package-output": true
+          },
+          {
+            "os": "ubuntu-24.04-arm",
+            "arch": "arm64",
+            "build-type": "Release",
+            "package-output": true
+          },
+          {
+            "os": "macos-latest",
+            "arch": "x86_64",
+            "build-type": "Release",
+            "package-output": true
+          },
+          {
+            "os": "macos-latest",
+            "arch": "arm64",
+            "build-type": "Release",
+            "package-output": true
+          },
+          {
+            "os": "windows-latest",
+            "arch": "x64",
+            "build-type": "Release",
+            "package-output": true
+          },
+          {
+            "os": "windows-11-arm",
+            "arch": "arm64",
+            "build-type": "Release",
+            "package-output": true,
+            "mingw-version": "12.2.0"
+          }
+        ]
       artifact-name-prefix: ""
 
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs:
-      [
-        build-linux-x64,
-        build-linux-arm64,
-        build-macos-x64,
-        build-macos-arm64,
-        build-windows-x64-mingw,
-        build-windows-arm64-mingw,
-      ]
+    needs: build
     if: always()
     steps:
       - uses: actions/checkout@v4
