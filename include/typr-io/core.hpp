@@ -14,10 +14,10 @@
 #ifndef TYPR_IO_VERSION
 // Default version; CMake can override these by defining TYPR_IO_VERSION_* via
 // -D flags if desired.
-#define TYPR_IO_VERSION "0.2.0"
+#define TYPR_IO_VERSION "0.2.1"
 #define TYPR_IO_VERSION_MAJOR 0
 #define TYPR_IO_VERSION_MINOR 2
-#define TYPR_IO_VERSION_PATCH 0
+#define TYPR_IO_VERSION_PATCH 1
 #endif
 
 // Symbol export macro to support building shared libraries on Windows.

@@ -1,6 +1,6 @@
 {
   "name": "typr-io",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cross-platform layout-aware input/output library for accessibility.",
   "homepage": "https://github.com/ziedyousfi/typr-io",
   "license": "MIT",
