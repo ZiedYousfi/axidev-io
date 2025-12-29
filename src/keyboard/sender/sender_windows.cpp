@@ -8,13 +8,9 @@
  */
 
 #ifdef _WIN32
-
 #include <Windows.h>
-#include <chrono>
-#include <thread>
 #include <typr-io/keyboard/sender.hpp>
 #include <typr-io/log.hpp>
-#include <unordered_map>
 
 namespace typr::io::keyboard {
 
