@@ -48,7 +48,11 @@ build:
 	@echo "Building (parallel jobs = $(JOBS))..."
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(JOBS)
 
-test: build
+test:
+	@echo "Configuring with tests enabled..."
+	$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(CMAKE_ARGS)
+	@echo "Building (parallel jobs = $(JOBS))..."
+	$(CMAKE) --build $(BUILD_DIR) --parallel $(JOBS)
 	@echo "Running tests..."
 	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
 
@@ -58,13 +62,17 @@ integration-test:
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(JOBS)
 	TYPR_IO_RUN_INTEGRATION_TESTS=1 TYPR_IO_INTERACTIVE=1 $(CTEST) --test-dir $(BUILD_DIR) -R typr-io-integration-tests -C Debug --output-on-failure -V
 
-run-unit-tests: build
+run-unit-tests:
+	@if [ ! -x "$(RUN_UNIT_TESTS)" ]; then \
+		echo "Unit tests binary not found. Configuring and building with tests enabled..."; \
+		$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -DTYPR_IO_BUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(CMAKE_ARGS); \
+		$(CMAKE) --build $(BUILD_DIR) --parallel $(JOBS); \
+	fi
 	@echo "Running unit tests binary..."
 	@if [ -x "$(RUN_UNIT_TESTS)" ]; then \
 		"$(RUN_UNIT_TESTS)"; \
 	else \
 		echo "Unit tests binary not found: $(RUN_UNIT_TESTS)"; \
-		echo "Did you run 'make build'?"; \
 		exit 1; \
 	fi
 
