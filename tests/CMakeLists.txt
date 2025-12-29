@@ -53,7 +53,7 @@ target_compile_features(axidev-io-unit-tests PRIVATE cxx_std_20)
 
 # Fix MinGW libwinpthread bug on Windows (GCC 15.2.0 incompatibility)
 if(WIN32)
-    target_link_options(axidev-io-unit-tests PRIVATE -static-libwinpthread -static-libgcc -static-libstdc++)
+    target_link_options(axidev-io-unit-tests PRIVATE -lpthread -static-libgcc -static-libstdc++)
 endif()
 
 # Register with CTest
