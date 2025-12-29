@@ -332,6 +332,7 @@ jobs:
         uses: egor-tensin/setup-mingw@v2
         with:
           platform: x86_64
+          static: 0
 
       - name: Configure & Build
         shell: bash
@@ -403,6 +404,7 @@ jobs:
         uses: egor-tensin/setup-mingw@v2
         with:
           platform: x86_64
+          static: 0
 
       - name: Configure & Build
         shell: bash
