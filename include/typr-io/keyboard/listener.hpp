@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file listener.hpp
+ * @file keyboard/listener.hpp
  * @brief Global keyboard event Listener (cross-platform).
  *
  * The Listener provides a cross-platform, best-effort global keyboard event
@@ -30,12 +30,12 @@
  * Example:
  *
  * @code{.cpp}
- * #include <typr-io/listener.hpp>
+ * #include <typr-io/keyboard/listener.hpp>
  *
  * int main() {
- *   typr::io::Listener l;
- *   bool ok = l.start([](char32_t cp, typr::io::Key k, typr::io::Modifier m,
- *                        bool pressed) {
+ *   typr::io::keyboard::Listener l;
+ *   bool ok = l.start([](char32_t cp, typr::io::keyboard::Key k,
+ *                        typr::io::keyboard::Modifier m, bool pressed) {
  *     // handle event
  *   });
  *   if (!ok) {
@@ -50,10 +50,11 @@
 #include <functional>
 #include <memory>
 
-#include <typr-io/core.hpp>
+#include <typr-io/keyboard/common.hpp>
 
 namespace typr {
 namespace io {
+namespace keyboard {
 
 /**
  * @class Listener
@@ -121,5 +122,6 @@ private:
   std::unique_ptr<Impl> m_impl;
 };
 
+} // namespace keyboard
 } // namespace io
 } // namespace typr

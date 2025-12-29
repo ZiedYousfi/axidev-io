@@ -1,16 +1,15 @@
 /**
- * @file listener_linux.cpp
- * @brief Linux/libinput implementation for typr::io::Listener.
+ * @file keyboard/listener/listener_linux.cpp
+ * @brief Linux/libinput implementation of typr::io::keyboard::Listener.
  *
  * Provides a libinput-based global keyboard event listener that translates
  * low-level input events into logical keys and Unicode codepoints using
- * xkbcommon. The implementation is responsible for device discovery,
- * event translation, and invoking the public Listener callback on observed
- * events. This file is only compiled on Linux targets.
+ * xkbcommon. The implementation handles device discovery, event translation,
+ * and invokes the public Listener callback on observed events.
  */
 #if defined(__linux__)
 
-#include <typr-io/listener.hpp>
+#include <typr-io/keyboard/listener.hpp>
 #include <typr-io/log.hpp>
 
 #include <algorithm>
@@ -33,7 +32,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
-namespace typr::io {
+namespace typr::io::keyboard {
 
 namespace {
 
@@ -85,7 +84,7 @@ static const struct libinput_interface kInterface = {
 
 /**
  * @internal
- * @brief PIMPL implementation for `typr::io::Listener`.
+ * @brief PIMPL implementation for `typr::io::keyboard::Listener`.
  *
  * This structure encapsulates the platform-specific state required to
  * implement the Listener, including the worker thread that polls libinput,
@@ -688,6 +687,6 @@ bool Listener::isListening() const {
   return m_impl ? m_impl->isRunning() : false;
 }
 
-} // namespace typr::io
+} // namespace typr::io::keyboard
 
 #endif // __linux__

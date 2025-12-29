@@ -1,6 +1,6 @@
 /**
- * @file listener_windows.cpp
- * @brief Windows (WH_KEYBOARD_LL) implementation of the Listener.
+ * @file keyboard/listener/listener_windows.cpp
+ * @brief Windows implementation of typr::io::keyboard::Listener.
  *
  * Uses a low-level keyboard hook (WH_KEYBOARD_LL) to observe global keyboard
  * activity, translate virtual keys and produced characters into logical
@@ -8,17 +8,14 @@
  * the public `Listener` callback. Callback invocations occur on the hook
  * thread and therefore must be thread-safe and avoid long/blocking work.
  *
- * Notes:
- *  - This implementation focuses on common printable characters and physical
- *    key mappings and intentionally avoids complex IME/dead-key composition
- *    behavior to remain lightweight and predictable.
- *  - WH_KEYBOARD_LL typically does not require elevated privileges, but
- *    behavior can vary across different Windows versions and configurations.
+ * @note This implementation focuses on common printable characters and physical
+ *       key mappings and intentionally avoids complex IME/dead-key composition
+ *       behavior to remain lightweight and predictable.
  */
 
 #ifdef _WIN32
 
-#include <typr-io/listener.hpp>
+#include <typr-io/keyboard/listener.hpp>
 
 #include <Windows.h>
 #include <atomic>
@@ -31,7 +28,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace typr::io {
+namespace typr::io::keyboard {
 
 namespace {
 
@@ -90,7 +87,8 @@ static bool output_debug_enabled() { return ::typr::io::log::debugEnabled(); }
 
 /**
  * @internal
- * @brief Pimpl for `typr::io::Listener` (Windows / hook-based backend).
+ * @brief Pimpl for `typr::io::keyboard::Listener` (Windows / hook-based
+ * backend).
  *
  * This structure manages the platform-specific pieces required for the
  * Windows listener: hook installation, the hook worker thread, VK -> Key
@@ -667,6 +665,6 @@ TYPR_IO_API bool Listener::isListening() const {
   return m_impl ? m_impl->isRunning() : false;
 }
 
-} // namespace typr::io
+} // namespace typr::io::keyboard
 
 #endif // _WIN32

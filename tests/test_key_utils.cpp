@@ -15,7 +15,7 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <typr-io/core.hpp>
+#include <typr-io/keyboard/common.hpp>
 #include <typr-io/log.hpp>
 
 #include <algorithm>
@@ -24,7 +24,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-using namespace typr::io;
+using namespace typr::io::keyboard;
 
 static std::string toLowerCopy(const std::string &s) {
   std::string out = s;

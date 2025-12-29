@@ -1,13 +1,14 @@
 /**
- * @file key_utils.cpp
- * @brief Utility helpers for mapping between `Key` enums and their canonical
- * textual names, and other small string helpers used by the key utilities.
+ * @file keyboard/common/key_utils.cpp
+ * @brief Utility helpers for mapping between `typr::io::keyboard::Key` enums
+ *        and their canonical textual names.
  *
- * This file implements `keyToString` and `stringToKey` and several internal
- * helpers used to normalize and escape input for logging and lookups.
+ * This file implements `typr::io::keyboard::keyToString` and
+ * `typr::io::keyboard::stringToKey` along with internal helpers used to
+ * normalize and escape input for logging and lookups.
  */
 
-#include <typr-io/core.hpp>
+#include <typr-io/keyboard/common.hpp>
 #include <typr-io/log.hpp>
 
 #include <algorithm>
@@ -19,6 +20,7 @@
 
 namespace typr {
 namespace io {
+namespace keyboard {
 
 namespace {
 
@@ -869,5 +871,6 @@ TYPR_IO_API Key stringToKey(const std::string &input) {
   return Key::Unknown;
 }
 
+} // namespace keyboard
 } // namespace io
 } // namespace typr

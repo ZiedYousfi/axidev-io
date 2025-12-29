@@ -1,10 +1,10 @@
 /**
- * @file sender_windows.cpp
- * @brief Windows implementation of the Sender (keyboard injection).
+ * @file keyboard/sender/sender_windows.cpp
+ * @brief Windows implementation of typr::io::keyboard::Sender.
  *
- * Implements an input injection backend using Win32 APIs (SendInput / keybd
- * events). The implementation attempts to be layout-aware and discovers
- * virtual-key mappings from the current keyboard layout.
+ * Implements keyboard input injection using Win32 APIs (SendInput / keybd
+ * events). The implementation is layout-aware and discovers virtual-key
+ * mappings from the current keyboard layout.
  */
 
 #ifdef _WIN32
@@ -12,11 +12,11 @@
 #include <Windows.h>
 #include <chrono>
 #include <thread>
+#include <typr-io/keyboard/sender.hpp>
 #include <typr-io/log.hpp>
-#include <typr-io/sender.hpp>
 #include <unordered_map>
 
-namespace typr::io {
+namespace typr::io::keyboard {
 
 namespace {
 
@@ -587,6 +587,6 @@ TYPR_IO_API void Sender::setKeyDelay(uint32_t delayUs) {
   m_impl->keyDelayUs = delayUs;
 }
 
-} // namespace typr::io
+} // namespace typr::io::keyboard
 
 #endif // _WIN32

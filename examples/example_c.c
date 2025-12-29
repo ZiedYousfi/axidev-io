@@ -35,11 +35,11 @@ static void print_last_error_if_any(const char *ctx) {
   }
 }
 
-static void my_listener_cb(uint32_t codepoint, typr_io_key_t key,
-                           typr_io_modifier_t mods, bool pressed,
+static void my_listener_cb(uint32_t codepoint, typr_io_keyboard_key_t key,
+                           typr_io_keyboard_modifier_t mods, bool pressed,
                            void *user_data) {
   (void)user_data;
-  char *kname = typr_io_key_to_string(key);
+  char *kname = typr_io_keyboard_key_to_string(key);
   if (kname) {
     printf("Listener event: codepoint=%u key=%s mods=0x%02x %s\n",
            (unsigned)codepoint, kname, (unsigned)mods,
@@ -50,7 +50,7 @@ static void my_listener_cb(uint32_t codepoint, typr_io_key_t key,
     printf("Listener event: codepoint=%u key=%u mods=0x%02x %s\n",
            (unsigned)codepoint, (unsigned)key, (unsigned)mods,
            pressed ? "PRESSED" : "RELEASED");
-    print_last_error_if_any("typr_io_key_to_string");
+    print_last_error_if_any("typr_io_keyboard_key_to_string");
   }
 }
 
@@ -59,31 +59,31 @@ int main(void) {
   printf("typr-io C API example (library version: %s)\n",
          ver ? ver : "(unknown)");
 
-  typr_io_sender_t sender = typr_io_sender_create();
+  typr_io_keyboard_sender_t sender = typr_io_keyboard_sender_create();
   if (!sender) {
     fprintf(stderr, "Failed to create Sender\n");
-    print_last_error_if_any("typr_io_sender_create");
+    print_last_error_if_any("typr_io_keyboard_sender_create");
     return EXIT_FAILURE;
   }
 
-  typr_io_capabilities_t caps;
-  typr_io_sender_get_capabilities(sender, &caps);
+  typr_io_keyboard_capabilities_t caps;
+  typr_io_keyboard_sender_get_capabilities(sender, &caps);
   printf("Sender capabilities: can_inject_keys=%d can_inject_text=%d "
          "can_simulate_hid=%d\n",
          caps.can_inject_keys ? 1 : 0, caps.can_inject_text ? 1 : 0,
          caps.can_simulate_hid ? 1 : 0);
 
   if (caps.can_inject_keys) {
-    typr_io_key_t keyA = typr_io_string_to_key("A");
-    if (keyA != (typr_io_key_t)0) {
+    typr_io_keyboard_key_t keyA = typr_io_keyboard_string_to_key("A");
+    if (keyA != (typr_io_keyboard_key_t)0) {
       printf("Tapping key 'A'\n");
-      if (!typr_io_sender_tap(sender, keyA)) {
-        fprintf(stderr, "typr_io_sender_tap failed\n");
-        print_last_error_if_any("typr_io_sender_tap");
+      if (!typr_io_keyboard_sender_tap(sender, keyA)) {
+        fprintf(stderr, "typr_io_keyboard_sender_tap failed\n");
+        print_last_error_if_any("typr_io_keyboard_sender_tap");
       }
     } else {
       fprintf(stderr, "Could not resolve key 'A'\n");
-      print_last_error_if_any("typr_io_string_to_key");
+      print_last_error_if_any("typr_io_keyboard_string_to_key");
     }
   } else {
     printf("Key injection not supported by this backend.\n");
@@ -91,34 +91,35 @@ int main(void) {
 
   if (caps.can_inject_text) {
     printf("Typing text via sender: \"Hello from typr-io C API\\n\"\n");
-    if (!typr_io_sender_type_text_utf8(sender, "Hello from typr-io C API\n")) {
-      fprintf(stderr, "typr_io_sender_type_text_utf8 failed\n");
-      print_last_error_if_any("typr_io_sender_type_text_utf8");
+    if (!typr_io_keyboard_sender_type_text_utf8(sender,
+                                                "Hello from typr-io C API\n")) {
+      fprintf(stderr, "typr_io_keyboard_sender_type_text_utf8 failed\n");
+      print_last_error_if_any("typr_io_keyboard_sender_type_text_utf8");
     }
   } else {
     printf("Text injection not supported by this backend.\n");
   }
 
   /* Listener demo (may require platform permissions). */
-  typr_io_listener_t listener = typr_io_listener_create();
+  typr_io_keyboard_listener_t listener = typr_io_keyboard_listener_create();
   if (!listener) {
     fprintf(stderr, "Failed to create Listener\n");
-    print_last_error_if_any("typr_io_listener_create");
-    typr_io_sender_destroy(sender);
+    print_last_error_if_any("typr_io_keyboard_listener_create");
+    typr_io_keyboard_sender_destroy(sender);
     return EXIT_FAILURE;
   }
 
   printf("Starting listener for 5 seconds. Press some keys to see events.\n");
-  if (!typr_io_listener_start(listener, my_listener_cb, NULL)) {
-    fprintf(stderr, "typr_io_listener_start failed\n");
-    print_last_error_if_any("typr_io_listener_start");
+  if (!typr_io_keyboard_listener_start(listener, my_listener_cb, NULL)) {
+    fprintf(stderr, "typr_io_keyboard_listener_start failed\n");
+    print_last_error_if_any("typr_io_keyboard_listener_start");
   } else {
     sleep_ms(5000);
-    typr_io_listener_stop(listener);
+    typr_io_keyboard_listener_stop(listener);
   }
 
-  typr_io_listener_destroy(listener);
-  typr_io_sender_destroy(sender);
+  typr_io_keyboard_listener_destroy(listener);
+  typr_io_keyboard_sender_destroy(sender);
 
   printf("Example complete.\n");
   return EXIT_SUCCESS;

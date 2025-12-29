@@ -1,23 +1,36 @@
 #pragma once
 
-// typr-io - sender.hpp
-// Public Sender (formerly InputBackend) API.
-// This header declares the `typr::io::Sender` class that provides layout-aware
-// physical key injection and text injection where supported by the platform.
-//
-// Usage:
-//   #include <typr-io/sender.hpp>
-//   typr::io::Sender sender;
-//   if (sender.capabilities().canInjectKeys) sender.tap(typr::io::Key::A);
+/**
+ * @file keyboard/sender.hpp
+ * @brief Keyboard input injection API (cross-platform).
+ *
+ * This header declares the `typr::io::keyboard::Sender` class that provides
+ * layout-aware physical key injection and text injection where supported by the
+ * platform.
+ *
+ * @par Usage:
+ * @code{.cpp}
+ * #include <typr-io/keyboard/sender.hpp>
+ *
+ * int main() {
+ *   typr::io::keyboard::Sender sender;
+ *   if (sender.capabilities().canInjectKeys) {
+ *     sender.tap(typr::io::keyboard::Key::A);
+ *   }
+ *   return 0;
+ * }
+ * @endcode
+ */
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#include <typr-io/core.hpp>
+#include <typr-io/keyboard/common.hpp>
 
 namespace typr {
 namespace io {
+namespace keyboard {
 
 /**
  * @class Sender
@@ -167,5 +180,6 @@ private:
   std::unique_ptr<Impl> m_impl;
 };
 
+} // namespace keyboard
 } // namespace io
 } // namespace typr

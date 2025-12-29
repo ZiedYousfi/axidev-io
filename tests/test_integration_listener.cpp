@@ -9,7 +9,7 @@
  */
 
 #include <catch2/catch_all.hpp>
-#include <typr-io/listener.hpp>
+#include <typr-io/keyboard/listener.hpp>
 #include <typr-io/log.hpp>
 
 #include <condition_variable>
@@ -18,7 +18,7 @@
 #include <string>
 #include <thread>
 
-using namespace typr::io;
+using namespace typr::io::keyboard;
 using namespace std::chrono_literals;
 
 static void appendUtf8(std::string &out, char32_t cp) {

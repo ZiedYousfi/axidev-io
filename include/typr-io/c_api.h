@@ -1,20 +1,25 @@
 /**
  * @file c_api.h
- * @brief C-compatible wrapper for the typr-io core functionality.
+ * @brief C-compatible wrapper for the typr-io keyboard functionality.
  *
  * This header provides a minimal, stable C ABI suitable for language bindings
  * and simple consumers that cannot directly link against the C++ API.
  *
+ * The C API wraps the keyboard-specific `typr::io::keyboard::Sender` and
+ * `typr::io::keyboard::Listener` classes, providing cross-platform keyboard
+ * input injection and global keyboard event monitoring.
+ *
  * Notes:
- *  - The C API is intentionally thin: it exposes opaque sender/listener
- *    handles and a small set of helper functions to operate them.
+ *  - The C API is intentionally thin: it exposes opaque keyboard
+ * sender/listener handles and a small set of helper functions to operate them.
  *  - Exported symbols are decorated with `TYPR_IO_API`. When included from
  *    C++ this macro is reused from <typr-io/core.hpp>. When included from C a
  *    safe no-op fallback is provided below.
  *
  * Threading / callbacks:
- *  - Listener callbacks may be invoked on an internal background thread. The
- *    provided callback must be thread-safe and avoid long-blocking work.
+ *  - Keyboard listener callbacks may be invoked on an internal background
+ * thread. The provided callback must be thread-safe and avoid long-blocking
+ * work.
  *
  * Memory ownership:
  *  - Functions that return strings allocate heap memory which callers must
@@ -25,16 +30,16 @@
  * #include <typr-io/c_api.h>
  *
  * int main(void) {
- *   typr_io_sender_t s = typr_io_sender_create();
+ *   typr_io_keyboard_sender_t s = typr_io_keyboard_sender_create();
  *   if (!s) return 1;
  *
- *   typr_io_capabilities_t caps;
- *   typr_io_sender_get_capabilities(s, &caps);
+ *   typr_io_keyboard_capabilities_t caps;
+ *   typr_io_keyboard_sender_get_capabilities(s, &caps);
  *   if (caps.can_inject_keys) {
- *     typr_io_sender_tap(s, typr_io_string_to_key("A"));
+ *     typr_io_keyboard_sender_tap(s, typr_io_keyboard_string_to_key("A"));
  *   }
  *
- *   typr_io_sender_destroy(s);
+ *   typr_io_keyboard_sender_destroy(s);
  *   return 0;
  * }
  * @endcode
@@ -65,25 +70,31 @@ extern "C" {
 #endif
 
 /**
- * @brief Opaque handle types used by the C API.
+ * @brief Opaque handle types for keyboard input/output operations.
  *
- * These are opaque pointers to library-managed C++ objects. Clients must
- * treat them as opaque handles and use the provided create/destroy functions
- * to manage their lifetime.
+ * These are opaque pointers to library-managed C++ objects that wrap
+ * `typr::io::keyboard::Sender` and `typr::io::keyboard::Listener`.
+ * Clients must treat them as opaque handles and use the provided
+ * create/destroy functions to manage their lifetime.
+ *
+ * - `typr_io_keyboard_sender_t`: Keyboard input injection (wraps
+ * keyboard::Sender)
+ * - `typr_io_keyboard_listener_t`: Global keyboard event monitoring (wraps
+ * keyboard::Listener)
  */
-typedef void *typr_io_sender_t;
-typedef void *typr_io_listener_t;
+typedef void *typr_io_keyboard_sender_t;
+typedef void *typr_io_keyboard_listener_t;
 
 /**
  * @brief Primitive types used for keys and modifiers in the C API.
  *
- * These types match the layout used by the C++ API: `typr_io_key_t`
+ * These types match the layout used by the C++ API: `typr_io_keyboard_key_t`
  * corresponds to `typr::io::Key`, and `typr_io_modifier_t` is a bitmask that
  * corresponds to `typr::io::Modifier`.
  */
-typedef uint16_t typr_io_key_t; /* corresponds to typr::io::Key */
-typedef uint8_t
-    typr_io_modifier_t; /* bitmask, corresponds to typr::io::Modifier */
+typedef uint16_t typr_io_keyboard_key_t; /* corresponds to typr::io::Key */
+typedef uint8_t typr_io_keyboard_modifier_t; /* bitmask, corresponds to
+                                                typr::io::Modifier */
 
 /**
  * @brief Common modifier bit masks for `typr_io_modifier_t`.
@@ -106,22 +117,22 @@ enum {
  * Members indicate features supported or requirements imposed by the active
  * backend implementation.
  *
- * @var typr_io_capabilities_t::can_inject_keys True if the backend can send
+ * @var typr_io_keyboard_capabilities_t::can_inject_keys True if the backend can send
  * physical key events.
- * @var typr_io_capabilities_t::can_inject_text True if the backend can inject
+ * @var typr_io_keyboard_capabilities_t::can_inject_text True if the backend can inject
  * arbitrary Unicode text.
- * @var typr_io_capabilities_t::can_simulate_hid True if the backend simulates
+ * @var typr_io_keyboard_capabilities_t::can_simulate_hid True if the backend simulates
  * low-level HID events (e.g., uinput).
- * @var typr_io_capabilities_t::supports_key_repeat True if key repeat is
+ * @var typr_io_keyboard_capabilities_t::supports_key_repeat True if key repeat is
  * supported by the backend.
- * @var typr_io_capabilities_t::needs_accessibility_perm True if accessibility
+ * @var typr_io_keyboard_capabilities_t::needs_accessibility_perm True if accessibility
  * permission is required (platform-dependent).
- * @var typr_io_capabilities_t::needs_input_monitoring_perm True if input
+ * @var typr_io_keyboard_capabilities_t::needs_input_monitoring_perm True if input
  * monitoring permission is required (platform-dependent).
- * @var typr_io_capabilities_t::needs_uinput_access True if uinput or similar
+ * @var typr_io_keyboard_capabilities_t::needs_uinput_access True if uinput or similar
  * device access is required.
  */
-typedef struct typr_io_capabilities_t {
+typedef struct typr_io_keyboard_capabilities_t {
   bool can_inject_keys;
   bool can_inject_text;
   bool can_simulate_hid;
@@ -129,46 +140,57 @@ typedef struct typr_io_capabilities_t {
   bool needs_accessibility_perm;
   bool needs_input_monitoring_perm;
   bool needs_uinput_access;
-} typr_io_capabilities_t;
+} typr_io_keyboard_capabilities_t;
 
 /**
- * @typedef typr_io_listener_cb
- * @brief Listener callback invoked for each observed key event.
+ * @typedef typr_io_keyboard_listener_cb
+ * @brief Keyboard listener callback invoked for each observed key event.
  *
- * @param codepoint Unicode codepoint produced by the event (0 if none).
- * @param key Logical key id (typr_io_key_t; 0 if unknown).
+ * This callback is invoked by the keyboard listener for each global keyboard
+ * event detected on the system.
+ *
+ * @param codepoint Unicode codepoint produced by the key event (0 if none).
+ * @param key Logical key id (typr_io_keyboard_key_t; 0 if unknown).
  * @param mods Current modifier bitmask (typr_io_modifier_t).
  * @param pressed True for key press, false for key release.
  * @param user_data Opaque pointer provided by the caller to
- * `typr_io_listener_start`.
+ * `typr_io_keyboard_listener_start`.
  */
-typedef void (*typr_io_listener_cb)(uint32_t codepoint, typr_io_key_t key,
-                                    typr_io_modifier_t mods, bool pressed,
-                                    void *user_data);
+typedef void (*typr_io_keyboard_listener_cb)(uint32_t codepoint,
+                                             typr_io_keyboard_key_t key,
+                                             typr_io_keyboard_modifier_t mods,
+                                             bool pressed, void *user_data);
 
-/** @name Sender (input injection)
- * @brief Functions to create and operate a Sender for injecting input.
+/** @name Keyboard Sender (keyboard input injection)
+ * @brief Functions to create and operate a keyboard Sender for injecting
+ * keyboard input.
+ *
+ * The keyboard sender provides cross-platform keyboard input injection,
+ * supporting physical key events and Unicode text injection where available.
  * @{
  */
 
 /**
- * @brief Create a new Sender instance.
- * @return typr_io_sender_t Opaque sender handle, or NULL on allocation failure.
+ * @brief Create a new keyboard Sender instance.
+ * @return typr_io_keyboard_sender_t Opaque keyboard sender handle, or NULL on
+ * allocation failure.
  */
-TYPR_IO_API typr_io_sender_t typr_io_sender_create(void);
+TYPR_IO_API typr_io_keyboard_sender_t typr_io_keyboard_sender_create(void);
 
 /**
- * @brief Destroy a Sender instance.
- * @param sender Sender handle to destroy (safe to call with NULL).
+ * @brief Destroy a keyboard Sender instance.
+ * @param sender Keyboard sender handle to destroy (safe to call with NULL).
  */
-TYPR_IO_API void typr_io_sender_destroy(typr_io_sender_t sender);
+TYPR_IO_API void
+typr_io_keyboard_sender_destroy(typr_io_keyboard_sender_t sender);
 
 /**
  * @brief Check whether the sender's backend is ready to inject events.
  * @param sender Sender handle.
  * @return true If the backend is ready; false otherwise.
  */
-TYPR_IO_API bool typr_io_sender_is_ready(typr_io_sender_t sender);
+TYPR_IO_API bool
+typr_io_keyboard_sender_is_ready(typr_io_keyboard_sender_t sender);
 
 /**
  * @brief Get the active backend type used by the sender.
@@ -176,8 +198,8 @@ TYPR_IO_API bool typr_io_sender_is_ready(typr_io_sender_t sender);
  * @return uint8_t BackendType as an integer value (see typr::io::BackendType in
  * the C++ API).
  */
-TYPR_IO_API uint8_t
-typr_io_sender_type(typr_io_sender_t sender); /* BackendType as integer */
+TYPR_IO_API uint8_t typr_io_keyboard_sender_type(
+    typr_io_keyboard_sender_t sender); /* BackendType as integer */
 
 /**
  * @brief Retrieve the backend capabilities.
@@ -185,9 +207,9 @@ typr_io_sender_type(typr_io_sender_t sender); /* BackendType as integer */
  * @param out_capabilities Output pointer that will be populated with
  * capabilities (must not be NULL).
  */
-TYPR_IO_API void
-typr_io_sender_get_capabilities(typr_io_sender_t sender,
-                                typr_io_capabilities_t *out_capabilities);
+TYPR_IO_API void typr_io_keyboard_sender_get_capabilities(
+    typr_io_keyboard_sender_t sender,
+    typr_io_keyboard_capabilities_t *out_capabilities);
 
 /**
  * @brief Request runtime permissions required by the backend
@@ -196,7 +218,8 @@ typr_io_sender_get_capabilities(typr_io_sender_t sender,
  * @return true if the backend is ready after requesting permissions; false
  * otherwise.
  */
-TYPR_IO_API bool typr_io_sender_request_permissions(typr_io_sender_t sender);
+TYPR_IO_API bool
+typr_io_keyboard_sender_request_permissions(typr_io_keyboard_sender_t sender);
 
 /**
  * @brief Simulate a physical key press.
@@ -204,8 +227,9 @@ TYPR_IO_API bool typr_io_sender_request_permissions(typr_io_sender_t sender);
  * @param key Logical key to press.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_key_down(typr_io_sender_t sender,
-                                         typr_io_key_t key);
+TYPR_IO_API bool
+typr_io_keyboard_sender_key_down(typr_io_keyboard_sender_t sender,
+                                 typr_io_keyboard_key_t key);
 
 /**
  * @brief Simulate a physical key release.
@@ -213,8 +237,9 @@ TYPR_IO_API bool typr_io_sender_key_down(typr_io_sender_t sender,
  * @param key Logical key to release.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_key_up(typr_io_sender_t sender,
-                                       typr_io_key_t key);
+TYPR_IO_API bool
+typr_io_keyboard_sender_key_up(typr_io_keyboard_sender_t sender,
+                               typr_io_keyboard_key_t key);
 
 /**
  * @brief Convenience: tap a key (press then release).
@@ -222,15 +247,16 @@ TYPR_IO_API bool typr_io_sender_key_up(typr_io_sender_t sender,
  * @param key Logical key to tap.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_tap(typr_io_sender_t sender, typr_io_key_t key);
+TYPR_IO_API bool typr_io_keyboard_sender_tap(typr_io_keyboard_sender_t sender,
+                                             typr_io_keyboard_key_t key);
 
 /**
  * @brief Get the currently active modifiers.
  * @param sender Sender handle.
  * @return typr_io_modifier_t Current modifier bitmask.
  */
-TYPR_IO_API typr_io_modifier_t
-typr_io_sender_active_modifiers(typr_io_sender_t sender);
+TYPR_IO_API typr_io_keyboard_modifier_t
+typr_io_keyboard_sender_active_modifiers(typr_io_keyboard_sender_t sender);
 
 /**
  * @brief Hold (press) the requested modifier keys.
@@ -238,8 +264,9 @@ typr_io_sender_active_modifiers(typr_io_sender_t sender);
  * @param mods Modifier bitmask specifying which modifiers to hold.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_hold_modifier(typr_io_sender_t sender,
-                                              typr_io_modifier_t mods);
+TYPR_IO_API bool
+typr_io_keyboard_sender_hold_modifier(typr_io_keyboard_sender_t sender,
+                                      typr_io_keyboard_modifier_t mods);
 
 /**
  * @brief Release the requested modifier keys.
@@ -247,15 +274,17 @@ TYPR_IO_API bool typr_io_sender_hold_modifier(typr_io_sender_t sender,
  * @param mods Modifier bitmask specifying which modifiers to release.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_release_modifier(typr_io_sender_t sender,
-                                                 typr_io_modifier_t mods);
+TYPR_IO_API bool
+typr_io_keyboard_sender_release_modifier(typr_io_keyboard_sender_t sender,
+                                         typr_io_keyboard_modifier_t mods);
 
 /**
  * @brief Release all modifiers currently held by the sender.
  * @param sender Sender handle.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_release_all_modifiers(typr_io_sender_t sender);
+TYPR_IO_API bool
+typr_io_keyboard_sender_release_all_modifiers(typr_io_keyboard_sender_t sender);
 
 /**
  * @brief Execute a key combo: press modifiers, tap key, release modifiers.
@@ -264,9 +293,9 @@ TYPR_IO_API bool typr_io_sender_release_all_modifiers(typr_io_sender_t sender);
  * @param key Key to tap while modifiers are held.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_combo(typr_io_sender_t sender,
-                                      typr_io_modifier_t mods,
-                                      typr_io_key_t key);
+TYPR_IO_API bool typr_io_keyboard_sender_combo(typr_io_keyboard_sender_t sender,
+                                               typr_io_keyboard_modifier_t mods,
+                                               typr_io_keyboard_key_t key);
 
 /**
  * @brief Inject UTF-8 text directly (layout-independent on supporting
@@ -275,8 +304,9 @@ TYPR_IO_API bool typr_io_sender_combo(typr_io_sender_t sender,
  * @param utf8_text Null-terminated UTF-8 string to inject.
  * @return true on success; false if not supported or on failure.
  */
-TYPR_IO_API bool typr_io_sender_type_text_utf8(typr_io_sender_t sender,
-                                               const char *utf8_text);
+TYPR_IO_API bool
+typr_io_keyboard_sender_type_text_utf8(typr_io_keyboard_sender_t sender,
+                                       const char *utf8_text);
 
 /**
  * @brief Inject a single Unicode codepoint.
@@ -284,14 +314,16 @@ TYPR_IO_API bool typr_io_sender_type_text_utf8(typr_io_sender_t sender,
  * @param codepoint Unicode codepoint to inject.
  * @return true on success; false on failure.
  */
-TYPR_IO_API bool typr_io_sender_type_character(typr_io_sender_t sender,
-                                               uint32_t codepoint);
+TYPR_IO_API bool
+typr_io_keyboard_sender_type_character(typr_io_keyboard_sender_t sender,
+                                       uint32_t codepoint);
 
 /**
  * @brief Flush pending events (force delivery).
  * @param sender Sender handle.
  */
-TYPR_IO_API void typr_io_sender_flush(typr_io_sender_t sender);
+TYPR_IO_API void
+typr_io_keyboard_sender_flush(typr_io_keyboard_sender_t sender);
 
 /**
  * @brief Set the delay (in microseconds) used by convenience operations like
@@ -299,27 +331,32 @@ TYPR_IO_API void typr_io_sender_flush(typr_io_sender_t sender);
  * @param sender Sender handle.
  * @param delay_us Delay in microseconds.
  */
-TYPR_IO_API void typr_io_sender_set_key_delay(typr_io_sender_t sender,
-                                              uint32_t delay_us);
-/** @} */ /* end of Sender group */
+TYPR_IO_API void
+typr_io_keyboard_sender_set_key_delay(typr_io_keyboard_sender_t sender,
+                                      uint32_t delay_us);
+/** @} */ /* end of Keyboard Sender group */
 
-/** @name Listener (global event monitoring)
- * @brief Functions to create and control a global key event listener.
+/** @name Keyboard Listener (global keyboard event monitoring)
+ * @brief Functions to create and control a global keyboard event listener.
+ *
+ * The keyboard listener monitors system-wide keyboard events and invokes
+ * a user-provided callback for each key press and release.
  * @{
  */
 
 /**
- * @brief Create a Listener instance.
- * @return typr_io_listener_t Opaque listener handle, or NULL on allocation
- * failure.
+ * @brief Create a keyboard Listener instance.
+ * @return typr_io_keyboard_listener_t Opaque keyboard listener handle, or NULL
+ * on allocation failure.
  */
-TYPR_IO_API typr_io_listener_t typr_io_listener_create(void);
+TYPR_IO_API typr_io_keyboard_listener_t typr_io_keyboard_listener_create(void);
 
 /**
  * @brief Destroy a Listener instance.
  * @param listener Listener handle to destroy (safe to call with NULL).
  */
-TYPR_IO_API void typr_io_listener_destroy(typr_io_listener_t listener);
+TYPR_IO_API void
+typr_io_keyboard_listener_destroy(typr_io_keyboard_listener_t listener);
 
 /**
  * @brief Start the listener. The callback may be invoked from an internal
@@ -330,23 +367,26 @@ TYPR_IO_API void typr_io_listener_destroy(typr_io_listener_t listener);
  * @return true on success; false if the listener could not be started
  *         (for example due to missing permissions or platform support).
  */
-TYPR_IO_API bool typr_io_listener_start(typr_io_listener_t listener,
-                                        typr_io_listener_cb cb,
-                                        void *user_data);
+TYPR_IO_API bool
+typr_io_keyboard_listener_start(typr_io_keyboard_listener_t listener,
+                                typr_io_keyboard_listener_cb cb,
+                                void *user_data);
 
 /**
  * @brief Stop the listener. Safe to call from any thread; a no-op if not
  * running.
  * @param listener Listener handle.
  */
-TYPR_IO_API void typr_io_listener_stop(typr_io_listener_t listener);
+TYPR_IO_API void
+typr_io_keyboard_listener_stop(typr_io_keyboard_listener_t listener);
 
 /**
  * @brief Query whether the listener is currently active.
  * @param listener Listener handle.
  * @return true if listening; false otherwise.
  */
-TYPR_IO_API bool typr_io_listener_is_listening(typr_io_listener_t listener);
+TYPR_IO_API bool
+typr_io_keyboard_listener_is_listening(typr_io_keyboard_listener_t listener);
 /** @} */ /* end of Listener group */
 
 /* ---------------- Utilities / Conversions ---------------- */
@@ -357,16 +397,16 @@ TYPR_IO_API bool typr_io_listener_is_listening(typr_io_listener_t listener);
  * @return char* Heap-allocated canonical name for the key (caller must free
  * with `typr_io_free_string`), or NULL on allocation failure.
  */
-TYPR_IO_API char *typr_io_key_to_string(typr_io_key_t key);
+TYPR_IO_API char *typr_io_keyboard_key_to_string(typr_io_keyboard_key_t key);
 
 /**
- * @brief Parse a textual key name to a `typr_io_key_t` value.
+ * @brief Parse a textual key name to a `typr_io_keyboard_key_t` value.
  * @param name Null-terminated string (case-insensitive; accepts common aliases
  * like "esc", "space").
- * @return typr_io_key_t Parsed key value, or 0 (Key::Unknown) for
+ * @return typr_io_keyboard_key_t Parsed key value, or 0 (Key::Unknown) for
  * unknown/invalid inputs.
  */
-TYPR_IO_API typr_io_key_t typr_io_string_to_key(const char *name);
+TYPR_IO_API typr_io_keyboard_key_t typr_io_keyboard_string_to_key(const char *name);
 
 /**
  * @brief Get the library version string.
@@ -393,7 +433,7 @@ TYPR_IO_API void typr_io_clear_last_error(void);
 
 /**
  * @brief Free a string returned by the C API.
- * @param s Pointer obtained from functions like `typr_io_key_to_string` or
+ * @param s Pointer obtained from functions like `typr_io_keyboard_key_to_string` or
  * `typr_io_get_last_error`. Safe to call with NULL.
  */
 TYPR_IO_API void typr_io_free_string(char *s);

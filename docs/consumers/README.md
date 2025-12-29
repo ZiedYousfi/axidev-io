@@ -26,18 +26,18 @@ target_link_libraries(myapp PRIVATE typr::io)
 Include the specific headers for the public API you need:
 
 ```
-#include <typr-io/sender.hpp>
+#include <typr-io/keyboard/sender.hpp>
 #include <iostream>
 
 int main() {
-  typr::io::Sender sender;
+  typr::io::keyboard::Sender sender;
   auto caps = sender.capabilities();
   std::cout << "canInjectKeys: " << caps.canInjectKeys << "\n";
 
   if (caps.canInjectText) {
     sender.typeText("Hello from typr-io");
   } else if (caps.canInjectKeys) {
-    sender.tap(typr::io::Key::A);
+    sender.tap(typr::io::keyboard::Key::A);
   }
   return 0;
 }

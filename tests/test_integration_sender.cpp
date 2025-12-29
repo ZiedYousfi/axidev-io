@@ -12,10 +12,10 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <typr-io/keyboard/sender.hpp>
 #include <typr-io/log.hpp>
-#include <typr-io/sender.hpp>
 
-using namespace typr::io;
+using namespace typr::io::keyboard;
 using namespace std::chrono_literals;
 
 TEST_CASE("Sender Integration Suite", "[integration]") {

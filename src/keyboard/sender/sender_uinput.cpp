@@ -1,17 +1,16 @@
-#if defined(__linux__) && !defined(BACKEND_USE_X11)
-
 /**
- * @file sender_uinput.cpp
- * @brief Linux/uinput implementation for typr::io::Sender.
+ * @file keyboard/sender/sender_uinput.cpp
+ * @brief Linux/uinput implementation of typr::io::keyboard::Sender.
  *
  * Uses the Linux uinput subsystem to create a virtual keyboard device and
  * emit EV_KEY events. The implementation is layout-aware and uses xkbcommon
  * to detect the active keyboard layout and translate characters to keycodes
- * where possible. This file is compiled only when the uinput backend is
- * selected (non-X11 builds).
+ * where possible. Compiled only when the uinput backend is selected.
  */
 
-#include <typr-io/sender.hpp>
+#if defined(__linux__) && !defined(BACKEND_USE_X11)
+
+#include <typr-io/keyboard/sender.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -30,7 +29,7 @@
 #include <unordered_map>
 #include <xkbcommon/xkbcommon.h>
 
-namespace typr::io {
+namespace typr::io::keyboard {
 
 /**
  * @internal
@@ -881,6 +880,6 @@ void Sender::setKeyDelay(uint32_t delayUs) {
     m_impl->keyDelayUs = delayUs;
 }
 
-} // namespace typr::io
+} // namespace typr::io::keyboard
 
 #endif // __linux__ && !BACKEND_USE_X11

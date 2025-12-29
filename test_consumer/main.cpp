@@ -1,6 +1,6 @@
-#include <typr-io/listener.hpp>
+#include <typr-io/keyboard/listener.hpp>
+#include <typr-io/keyboard/sender.hpp>
 #include <typr-io/log.hpp>
-#include <typr-io/sender.hpp>
 
 #include <chrono>
 #include <csignal>
@@ -14,7 +14,7 @@
 static volatile sig_atomic_t g_sigint_received = 0;
 static void playground_sig_handler(int) { g_sigint_received = 1; }
 int main(int argc, char **argv) {
-  typr::io::Sender sender;
+  typr::io::keyboard::Sender sender;
   auto caps = sender.capabilities();
   TYPR_IO_LOG_INFO("test_consumer: started argc=%d", argc);
 
@@ -78,8 +78,8 @@ int main(int argc, char **argv) {
         return 1;
       }
       std::string keyName = argv[++i];
-      typr::io::Key k = typr::io::stringToKey(keyName);
-      if (k == typr::io::Key::Unknown) {
+      typr::io::keyboard::Key k = typr::io::keyboard::stringToKey(keyName);
+      if (k == typr::io::keyboard::Key::Unknown) {
         std::cerr << "Unknown key: " << keyName << "\n";
         continue;
       }
@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
         continue;
       }
       TYPR_IO_LOG_INFO("test_consumer: tapping key=%s", keyName.c_str());
-      std::cout << "Tapping key: " << typr::io::keyToString(k) << "\n";
+      std::cout << "Tapping key: " << typr::io::keyboard::keyToString(k) << "\n";
       bool ok = sender.tap(k);
       TYPR_IO_LOG_INFO("test_consumer: tap result=%u",
                        static_cast<unsigned>(ok));
@@ -121,9 +121,9 @@ int main(int argc, char **argv) {
       TYPR_IO_LOG_INFO("test_consumer: attempting to start temporary listener "
                        "to check input-monitoring permission");
       {
-        typr::io::Listener tmpListener;
+        typr::io::keyboard::Listener tmpListener;
         bool started = tmpListener.start(
-            [](char32_t, typr::io::Key, typr::io::Modifier, bool) {});
+            [](char32_t, typr::io::keyboard::Key, typr::io::keyboard::Modifier, bool) {});
         TYPR_IO_LOG_INFO("test_consumer: temporary listener started=%u",
                          static_cast<unsigned>(started));
         if (!started) {
@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
         bool doType = false;
         bool doTap = false;
         std::string text;
-        typr::io::Key tapKey = typr::io::Key::Unknown;
+        typr::io::keyboard::Key tapKey = typr::io::keyboard::Key::Unknown;
 
         while (i + 1 < argc) {
           std::string sub = argv[i + 1];
@@ -182,8 +182,8 @@ int main(int argc, char **argv) {
             }
             i += 2;
             std::string keyName = argv[i];
-            typr::io::Key k = typr::io::stringToKey(keyName);
-            if (k == typr::io::Key::Unknown) {
+            typr::io::keyboard::Key k = typr::io::keyboard::stringToKey(keyName);
+            if (k == typr::io::keyboard::Key::Unknown) {
               std::cerr << "Unknown key: " << keyName << "\n";
               return 1;
             }
@@ -268,9 +268,9 @@ int main(int argc, char **argv) {
                     << "Sender cannot inject physical keys on this platform\n";
               } else {
                 TYPR_IO_LOG_INFO("test_consumer: playground: tapping key=%s",
-                                 typr::io::keyToString(tapKey).c_str());
+                                 typr::io::keyboard::keyToString(tapKey).c_str());
                 std::cout << "Playground: Tapping key: "
-                          << typr::io::keyToString(tapKey) << "\n";
+                          << typr::io::keyboard::keyToString(tapKey) << "\n";
                 bool ok = sender.tap(tapKey);
                 TYPR_IO_LOG_INFO("test_consumer: playground: tap result=%u",
                                  static_cast<unsigned>(ok));
@@ -315,9 +315,9 @@ int main(int argc, char **argv) {
                     << "Sender cannot inject physical keys on this platform\n";
               } else {
                 TYPR_IO_LOG_INFO("test_consumer: playground: tapping key=%s",
-                                 typr::io::keyToString(tapKey).c_str());
+                                 typr::io::keyboard::keyToString(tapKey).c_str());
                 std::cout << "Playground: Tapping key: "
-                          << typr::io::keyToString(tapKey) << "\n";
+                          << typr::io::keyboard::keyToString(tapKey) << "\n";
                 bool ok = sender.tap(tapKey);
                 TYPR_IO_LOG_INFO("test_consumer: playground: tap result=%u",
                                  static_cast<unsigned>(ok));
@@ -365,12 +365,12 @@ int main(int argc, char **argv) {
         TYPR_IO_LOG_INFO(
             "test_consumer: playground: starting listener (duration=%d)",
             duration);
-        typr::io::Listener listener;
+        typr::io::keyboard::Listener listener;
         struct Event {
           std::chrono::steady_clock::time_point ts;
           char32_t codepoint;
-          typr::io::Key key;
-          typr::io::Modifier mods;
+          typr::io::keyboard::Key key;
+          typr::io::keyboard::Modifier mods;
           bool pressed;
         };
         std::vector<Event> events;
@@ -380,12 +380,12 @@ int main(int argc, char **argv) {
         std::signal(SIGTERM, playground_sig_handler);
 
         bool started =
-            listener.start([&](char32_t codepoint, typr::io::Key key,
-                               typr::io::Modifier mods, bool pressed) {
+            listener.start([&](char32_t codepoint, typr::io::keyboard::Key key,
+                               typr::io::keyboard::Modifier mods, bool pressed) {
               TYPR_IO_LOG_DEBUG("test_consumer: playground listener event %s "
                                 "key=%s cp=%u mods=0x%02x",
                                 pressed ? "press" : "release",
-                                typr::io::keyToString(key).c_str(),
+                                typr::io::keyboard::keyToString(key).c_str(),
                                 static_cast<unsigned>(codepoint),
                                 static_cast<int>(static_cast<uint8_t>(mods)));
               std::lock_guard<std::mutex> lg(events_mtx);
@@ -428,7 +428,7 @@ int main(int argc, char **argv) {
                           .count();
             std::cout << "[" << ms << "ms] "
                       << (e.pressed ? "[press]  " : "[release] ")
-                      << "Key=" << typr::io::keyToString(e.key)
+                      << "Key=" << typr::io::keyboard::keyToString(e.key)
                       << " CP=" << static_cast<unsigned>(e.codepoint)
                       << " Mods=0x" << std::hex
                       << static_cast<int>(static_cast<uint8_t>(e.mods))
@@ -456,16 +456,16 @@ int main(int argc, char **argv) {
 
       TYPR_IO_LOG_INFO("test_consumer: starting listener for %d seconds",
                        seconds);
-      typr::io::Listener listener;
-      bool started = listener.start([](char32_t codepoint, typr::io::Key key,
-                                       typr::io::Modifier mods, bool pressed) {
+      typr::io::keyboard::Listener listener;
+      bool started = listener.start([](char32_t codepoint, typr::io::keyboard::Key key,
+                                       typr::io::keyboard::Modifier mods, bool pressed) {
         TYPR_IO_LOG_DEBUG(
             "test_consumer: listener event %s key=%s cp=%u mods=0x%02x",
-            pressed ? "press" : "release", typr::io::keyToString(key).c_str(),
+            pressed ? "press" : "release", typr::io::keyboard::keyToString(key).c_str(),
             static_cast<unsigned>(codepoint),
             static_cast<int>(static_cast<uint8_t>(mods)));
         std::cout << (pressed ? "[press]  " : "[release] ")
-                  << "Key=" << typr::io::keyToString(key)
+                  << "Key=" << typr::io::keyboard::keyToString(key)
                   << " CP=" << static_cast<unsigned>(codepoint) << " Mods=0x"
                   << std::hex << static_cast<int>(static_cast<uint8_t>(mods))
                   << std::dec << "\n";

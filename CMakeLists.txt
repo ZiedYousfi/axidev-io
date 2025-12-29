@@ -24,19 +24,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(TYPR_SOURCES
-    src/common/key_utils.cpp
+    src/keyboard/common/key_utils.cpp
     src/c_api.cpp
 )
 
 if(APPLE)
     list(APPEND TYPR_SOURCES
-        src/sender/sender_macos.mm
-        src/listener/listener_macos.mm
+        src/keyboard/sender/sender_macos.mm
+        src/keyboard/listener/listener_macos.mm
     )
 elseif(WIN32)
     list(APPEND TYPR_SOURCES
-        src/sender/sender_windows.cpp
-        src/listener/listener_windows.cpp
+        src/keyboard/sender/sender_windows.cpp
+        src/keyboard/listener/listener_windows.cpp
     )
 elseif(UNIX)
     find_package(PkgConfig REQUIRED)
@@ -45,8 +45,8 @@ elseif(UNIX)
     pkg_check_modules(XKBCOMMON REQUIRED xkbcommon)
 
     list(APPEND TYPR_SOURCES
-        src/sender/sender_uinput.cpp
-        src/listener/listener_linux.cpp
+        src/keyboard/sender/sender_uinput.cpp
+        src/keyboard/listener/listener_linux.cpp
     )
 endif()
 
@@ -102,7 +102,7 @@ target_link_libraries(typr_io PRIVATE Threads::Threads)
 set_target_properties(typr_io PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
-    PUBLIC_HEADER "include/typr-io/core.hpp;include/typr-io/sender.hpp;include/typr-io/listener.hpp;include/typr-io/c_api.h"
+    PUBLIC_HEADER "include/typr-io/core.hpp;include/typr-io/keyboard/sender.hpp;include/typr-io/keyboard/listener.hpp;include/typr-io/c_api.h"
 )
 
 add_library(typr::io ALIAS typr_io)

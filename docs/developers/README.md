@@ -52,11 +52,11 @@ Top-level important paths (brief):
 
 - `CMakeLists.txt` — top-level build configuration and exported targets.
 - `Makefile` — convenience targets like `configure`, `build`, `test`, `run-consumer`.
-- `include/typr-io/` — public headers (e.g., `include/typr-io/core.hpp`, `include/typr-io/sender.hpp`, `include/typr-io/listener.hpp`).
+- `include/typr-io/` — public headers (e.g., `include/typr-io/core.hpp`, `include/typr-io/keyboard/common.hpp`, `include/typr-io/keyboard/sender.hpp`, `include/typr-io/keyboard/listener.hpp`).
 - `src/`:
-  - `src/sender/` — platform input injection (HID / virtual keyboard) implementations (e.g. `sender_macos.mm`, `sender_windows.cpp`, `sender_uinput.cpp`).
-  - `src/listener/` — global output listener implementations (`listener_macos.mm`, `listener_windows.cpp`, `listener_linux.cpp`).
-  - `src/common/` — cross-platform helpers.
+  - `src/keyboard/sender/` — platform input injection (HID / virtual keyboard) implementations (e.g. `sender_macos.mm`, `sender_windows.cpp`, `sender_uinput.cpp`).
+  - `src/keyboard/listener/` — global output listener implementations (`listener_macos.mm`, `listener_windows.cpp`, `listener_linux.cpp`).
+  - `src/keyboard/common/` — shared keyboard utilities (key-to-string mappings, etc.).
 - `examples/` — example programs demonstrating consumer usage.
 - `test_consumer/` — lightweight test consumer used in `make test`.
 - Packaging manifests: `conanfile.py`, `vcpkg.json`.
@@ -93,8 +93,8 @@ Top-level important paths (brief):
 When adding support for a new platform, follow this checklist:
 
 1. Decide where it belongs:
-   - Input injection backends go in `src/sender/` (e.g. `sender_<platform>.[cpp|mm]`).
-   - Global output listener backends go in `src/listener/` (e.g. `listener_<platform>.[cpp|mm]`).
+   - Input injection backends go in `src/keyboard/sender/` (e.g. `sender_<platform>.[cpp|mm]`).
+   - Global output listener backends go in `src/keyboard/listener/` (e.g. `listener_<platform>.[cpp|mm]`).
 2. Use the existing platform implementations as a template (see `sender_macos.mm`, `sender_windows.cpp`, `sender_uinput.cpp`, `listener_linux.cpp`).
 3. Keep platform-specific code out of shared headers; prefer implementation files and conditional build rules.
 4. Add the new source file to the CMake target:
@@ -170,9 +170,9 @@ Before opening a PR:
 
 ## Key files & references
 
-- `include/typr-io/` — public headers (e.g., `include/typr-io/core.hpp`, `include/typr-io/sender.hpp`, `include/typr-io/listener.hpp`).
-- `src/sender/` — input injection implementations.
-- `src/listener/` — global output listener implementations.
+- `include/typr-io/` — public headers (e.g., `include/typr-io/core.hpp`, `include/typr-io/keyboard/common.hpp`, `include/typr-io/keyboard/sender.hpp`, `include/typr-io/keyboard/listener.hpp`).
+- `src/keyboard/sender/` — input injection implementations.
+- `src/keyboard/listener/` — global output listener implementations.
 - `examples/` — sample apps demonstrating consumer APIs.
 - `test_consumer/` — lightweight test harness used by `make test`.
 - `CMakeLists.txt`, `Makefile`, `conanfile.py`, `vcpkg.json` — build and packaging helpers.

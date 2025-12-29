@@ -1,21 +1,29 @@
+/**
+ * @file keyboard/listener/listener_macos.mm
+ * @brief macOS implementation of typr::io::keyboard::Listener.
+ *
+ * Uses Core Graphics event taps to monitor global keyboard events.
+ * Requires Input Monitoring permission on macOS 10.15+.
+ */
+
 #ifdef __APPLE__
 
-#include <typr-io/listener.hpp>
+#include <typr-io/keyboard/listener.hpp>
 
-#import <Foundation/Foundation.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
-#include <typr-io/log.hpp>
+#import <Foundation/Foundation.h>
+#include <array>
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <chrono>
-#include <thread>
-#include <atomic>
 #include <mutex>
+#include <thread>
+#include <typr-io/log.hpp>
 #include <unordered_map>
-#include <array>
 
-namespace typr::io {
+namespace typr::io::keyboard {
 
 namespace {
 
@@ -40,20 +48,18 @@ Modifier flagsToModifier(CGEventFlags flags) {
   return mods;
 }
 
-static bool output_debug_enabled() {
-  return ::typr::io::log::debugEnabled();
-}
+static bool output_debug_enabled() { return ::typr::io::log::debugEnabled(); }
 
 } // namespace
 
 struct Listener::Impl {
-  Impl() : running(false), eventTap(nullptr), runLoopSource(nullptr), runLoop(nullptr) {
+  Impl()
+      : running(false), eventTap(nullptr), runLoopSource(nullptr),
+        runLoop(nullptr) {
     initKeyMap();
   }
 
-  ~Impl() {
-    stop();
-  }
+  ~Impl() { stop(); }
 
   bool start(Callback cb) {
     std::lock_guard<std::mutex> lk(cbMutex);
@@ -74,7 +80,8 @@ struct Listener::Impl {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     bool ok = ready.load();
-    TYPR_IO_LOG_DEBUG("Listener (macOS): start result=%u", static_cast<unsigned>(ok));
+    TYPR_IO_LOG_DEBUG("Listener (macOS): start result=%u",
+                      static_cast<unsigned>(ok));
     return ok;
   }
 
@@ -116,23 +123,28 @@ private:
   // Thread main installs an event tap and runs a CFRunLoop to receive events.
   void threadMain() {
     // Create an event mask for key down + key up
-    CGEventMask mask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp);
+    CGEventMask mask =
+        CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp);
 
     // Try to create an event tap on the session level. If this fails, the
     // system likely blocked input monitoring (or another error occurred).
-    eventTap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask,
+    eventTap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
+                                kCGEventTapOptionListenOnly, mask,
                                 &Impl::eventTapCallback, this);
     if (eventTap == nullptr) {
       // Failed to create event tap -> nothing we can do here
       running.store(false);
       ready.store(false);
-      TYPR_IO_LOG_ERROR("Listener (macOS): failed to create CGEventTap. Input Monitoring permission may be missing.");
+      TYPR_IO_LOG_ERROR("Listener (macOS): failed to create CGEventTap. Input "
+                        "Monitoring permission may be missing.");
       return;
     }
 
     // Create a runloop source and add it to the current run loop
-    runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
+    runLoopSource =
+        CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource,
+                       kCFRunLoopCommonModes);
     // Enable the tap
     CGEventTapEnable(eventTap, true);
 
@@ -160,7 +172,8 @@ private:
   }
 
   // Event tap callback (invoked on the run loop thread)
-  static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
+  static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type,
+                                     CGEventRef event, void *userInfo) {
     Impl *self = reinterpret_cast<Impl *>(userInfo);
     if (!self)
       return event;
@@ -176,12 +189,15 @@ private:
       return event;
 
     bool pressed = (type == kCGEventKeyDown);
-    CGKeyCode keyCode = static_cast<CGKeyCode>(CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode));
+    CGKeyCode keyCode = static_cast<CGKeyCode>(
+        CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode));
 
     // Unicode extraction - macOS gives us UTF-16 UniChar sequences
     std::array<UniChar, 4> uniBuf{};
     UniCharCount actualLen = 0;
-    CGEventKeyboardGetUnicodeString(event, static_cast<UniCharCount>(uniBuf.size()), &actualLen, uniBuf.data());
+    CGEventKeyboardGetUnicodeString(event,
+                                    static_cast<UniCharCount>(uniBuf.size()),
+                                    &actualLen, uniBuf.data());
 
     char32_t codepoint = 0;
     if (actualLen > 0) {
@@ -191,7 +207,8 @@ private:
         // Combine surrogate pair
         uint32_t high = static_cast<uint32_t>(uniBuf[0]);
         uint32_t low = static_cast<uint32_t>(uniBuf[1]);
-        if ((0xD800 <= high && high <= 0xDBFF) && (0xDC00 <= low && low <= 0xDFFF)) {
+        if ((0xD800 <= high && high <= 0xDBFF) &&
+            (0xDC00 <= low && low <= 0xDFFF)) {
           codepoint = 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
         } else {
           codepoint = 0; // invalid surrogate pair; drop
@@ -246,23 +263,32 @@ private:
       auto now = std::chrono::steady_clock::now();
       auto rtIt = self->lastReleaseTime.find(keyCode);
       auto sigIt = self->lastReleaseSig.find(keyCode);
-      if (rtIt != self->lastReleaseTime.end() && sigIt != self->lastReleaseSig.end()) {
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - rtIt->second);
-        if (elapsed < kReleaseDebounceMs && sigIt->second.first == codepoint && sigIt->second.second == mods) {
+      if (rtIt != self->lastReleaseTime.end() &&
+          sigIt != self->lastReleaseSig.end()) {
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - rtIt->second);
+        if (elapsed < kReleaseDebounceMs && sigIt->second.first == codepoint &&
+            sigIt->second.second == mods) {
           if (output_debug_enabled()) {
             std::string kname = "Unknown";
             auto kIt = self->cgKeyToKey.find(keyCode);
-            if (kIt != self->cgKeyToKey.end()) kname = keyToString(kIt->second);
-            TYPR_IO_LOG_DEBUG("Listener (macOS): ignoring duplicate release (same cp+mods) for keycode=%u key=%s cp=%u mods=%u",
-                              (unsigned)keyCode, kname.c_str(), (unsigned)codepoint, (unsigned)mods);
+            if (kIt != self->cgKeyToKey.end())
+              kname = keyToString(kIt->second);
+            TYPR_IO_LOG_DEBUG(
+                "Listener (macOS): ignoring duplicate release (same cp+mods) "
+                "for keycode=%u key=%s cp=%u mods=%u",
+                (unsigned)keyCode, kname.c_str(), (unsigned)codepoint,
+                (unsigned)mods);
           }
-          // Update timestamp & signature so subsequent quick duplicates remain debounced.
+          // Update timestamp & signature so subsequent quick duplicates remain
+          // debounced.
           self->lastReleaseTime[keyCode] = now;
           self->lastReleaseSig[keyCode] = std::make_pair(codepoint, mods);
           return event;
         }
       }
-      // Not a duplicate matching the last cp+mods -> record the new signature/time.
+      // Not a duplicate matching the last cp+mods -> record the new
+      // signature/time.
       self->lastReleaseTime[keyCode] = now;
       self->lastReleaseSig[keyCode] = std::make_pair(codepoint, mods);
 
@@ -273,8 +299,10 @@ private:
         if (cpIt != self->lastPressCp.end()) {
           codepoint = cpIt->second;
           if (output_debug_enabled()) {
-            TYPR_IO_LOG_DEBUG("Listener (macOS): using last-press cp=%u for release keycode=%u",
-                              static_cast<unsigned>(codepoint), static_cast<unsigned>(keyCode));
+            TYPR_IO_LOG_DEBUG("Listener (macOS): using last-press cp=%u for "
+                              "release keycode=%u",
+                              static_cast<unsigned>(codepoint),
+                              static_cast<unsigned>(keyCode));
           }
         }
       }
@@ -283,8 +311,6 @@ private:
       // don't accidentally reuse it for future, unrelated events.
       self->lastPressCp.erase(keyCode);
     }
-
-
 
     // Invoke user callback outside the lock
     Callback cbCopy;
@@ -299,10 +325,11 @@ private:
     {
       std::string kname = "Unknown";
       auto kIt = self->cgKeyToKey.find(keyCode);
-      if (kIt != self->cgKeyToKey.end()) kname = keyToString(kIt->second);
+      if (kIt != self->cgKeyToKey.end())
+        kname = keyToString(kIt->second);
       TYPR_IO_LOG_DEBUG("Listener (macOS) %s: keycode=%u key=%s cp=%u mods=%u",
-                       pressed ? "press" : "release", (unsigned)keyCode, kname.c_str(),
-                       (unsigned)codepoint, (unsigned)mods);
+                        pressed ? "press" : "release", (unsigned)keyCode,
+                        kname.c_str(), (unsigned)codepoint, (unsigned)mods);
     }
 
     // Let the event pass through unchanged
@@ -317,7 +344,8 @@ private:
     TISInputSourceRef currentKeyboard = TISCopyCurrentKeyboardInputSource();
     if (currentKeyboard == nullptr) {
       // Fall back to using constants only
-      TYPR_IO_LOG_WARN("Listener (macOS): TISCopyCurrentKeyboardInputSource failed, using fallbacks");
+      TYPR_IO_LOG_WARN("Listener (macOS): TISCopyCurrentKeyboardInputSource "
+                       "failed, using fallbacks");
       fillFallbacks();
       return;
     }
@@ -326,7 +354,8 @@ private:
         currentKeyboard, kTISPropertyUnicodeKeyLayoutData));
     if (layoutData == nullptr) {
       CFRelease(currentKeyboard);
-      TYPR_IO_LOG_WARN("Listener (macOS): keyboard layout data not available, using fallbacks");
+      TYPR_IO_LOG_WARN("Listener (macOS): keyboard layout data not available, "
+                       "using fallbacks");
       fillFallbacks();
       return;
     }
@@ -360,7 +389,8 @@ private:
           mappedKeyString = "space"; // map space to canonical name
         } else if (firstUnicodeChar == kAsciiTab) {
           mappedKeyString = "tab";
-        } else if (firstUnicodeChar == kAsciiCR || firstUnicodeChar == kAsciiLF) {
+        } else if (firstUnicodeChar == kAsciiCR ||
+                   firstUnicodeChar == kAsciiLF) {
           mappedKeyString = "enter";
         } else if (firstUnicodeChar < kAsciiMax) {
           mappedKeyString = std::string(1, static_cast<char>(firstUnicodeChar));
@@ -371,7 +401,8 @@ private:
 
         Key mappedKeyEnum = stringToKey(mappedKeyString);
         if (mappedKeyEnum != Key::Unknown) {
-          if (cgKeyToKey.find(static_cast<CGKeyCode>(keyCode)) == cgKeyToKey.end()) {
+          if (cgKeyToKey.find(static_cast<CGKeyCode>(keyCode)) ==
+              cgKeyToKey.end()) {
             cgKeyToKey[static_cast<CGKeyCode>(keyCode)] = mappedKeyEnum;
           }
         }
@@ -508,7 +539,8 @@ private:
   // Timestamp of the last release seen for a given keycode. Used to debounce
   // duplicate release events which can otherwise cause repeated characters in
   // the observed output.
-  std::unordered_map<CGKeyCode, std::chrono::steady_clock::time_point> lastReleaseTime;
+  std::unordered_map<CGKeyCode, std::chrono::steady_clock::time_point>
+      lastReleaseTime;
   std::unordered_map<CGKeyCode, std::pair<char32_t, Modifier>> lastReleaseSig;
 };
 
@@ -528,6 +560,6 @@ bool Listener::isListening() const {
   return m_impl ? m_impl->isRunning() : false;
 }
 
-} // namespace backend
+} // namespace typr::io::keyboard
 
 #endif // __APPLE__

@@ -14,7 +14,7 @@ If you're not sure where to start, pick the audience that best matches your inte
 - Main project README: `README.md` — Platform-specific behaviour and overview.
 - Examples: `examples/` — Example programs demonstrating typical usage.
 - Test consumer: `test_consumer/` — Lightweight test harness used by CI and local checks.
-- Public API headers: `include/typr-io/` (e.g., `include/typr-io/core.hpp`, `include/typr-io/sender.hpp`, `include/typr-io/listener.hpp`).
+- Public API headers: `include/typr-io/` (e.g., `include/typr-io/core.hpp`, `include/typr-io/keyboard/common.hpp`, `include/typr-io/keyboard/sender.hpp`, `include/typr-io/keyboard/listener.hpp`).
 
 ## Which doc should I read?
 
