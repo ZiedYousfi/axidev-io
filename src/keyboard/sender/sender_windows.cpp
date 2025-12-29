@@ -370,7 +370,11 @@ struct Sender::Impl {
 
   void delay() {
     if (keyDelayUs > 0) {
-      std::this_thread::sleep_for(std::chrono::microseconds(keyDelayUs));
+      // Use Windows Sleep API to avoid nanosleepe64 dependency issues
+      // with MinGW on older Windows versions. Convert microseconds to
+      // milliseconds.
+      unsigned long ms = (keyDelayUs + 999) / 1000; // Round up
+      Sleep(ms);
     }
   }
 };
