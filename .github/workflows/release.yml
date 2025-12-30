@@ -58,7 +58,6 @@ jobs:
             "arch": "arm64",
             "build-type": "Release",
             "package-output": true,
-            "mingw-version": "12.2.0"
           }
         ]
       artifact-name-prefix: ""
