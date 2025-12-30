@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 project(axidev-io
-    VERSION 0.3.0
+    VERSION 0.3.2
     DESCRIPTION "Cross-platform layout-aware input/output library"
     LANGUAGES CXX C
 )
