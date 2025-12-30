@@ -11,6 +11,7 @@
 #include <Windows.h>
 #include <axidev-io/keyboard/sender.hpp>
 #include <axidev-io/log.hpp>
+#include <vector>
 #include <unordered_map>
 
 namespace axidev::io::keyboard {
