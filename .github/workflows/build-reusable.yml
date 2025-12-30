@@ -6,7 +6,7 @@ on:
       matrix-json:
         required: true
         type: string
-        description: "JSON array of build configurations. Each object should contain: os, arch, and optional build-type, build-tests, build-integration-tests, run-tests, package-output, enable-xvfb, cmake-generator, mingw-version"
+        description: "JSON array of build configurations. Each object must provide os and arch and may include build-type, build-tests, run-tests, package-output, enable-xvfb, cmake-generator, mingw-version."
       artifact-name-prefix:
         required: false
         type: string
@@ -14,28 +14,60 @@ on:
         description: "Prefix for artifact names"
 
 jobs:
-  build:
+  prepare-matrix:
+    name: Prepare build matrices
+    runs-on: ubuntu-latest
+    outputs:
+      linux-matrix: ${{ steps.split.outputs.linux-matrix }}
+      macos-matrix: ${{ steps.split.outputs.macos-matrix }}
+      windows-matrix: ${{ steps.split.outputs.windows-matrix }}
+    steps:
+      - name: Split matrix by OS
+        id: split
+        uses: actions/github-script@v7
+        env:
+          MATRIX_JSON: ${{ inputs.matrix-json }}
+        with:
+          script: |
+            const raw = process.env.MATRIX_JSON;
+            let matrix;
+            try {
+              matrix = JSON.parse(raw);
+            } catch (e) {
+              core.setFailed(`Invalid inputs.matrix-json: ${e.message}`);
+              return;
+            }
+
+            if (!Array.isArray(matrix)) {
+              core.setFailed('inputs.matrix-json must be a JSON array');
+              return;
+            }
+
+            const byOsPrefix = (prefix) =>
+              matrix.filter((cfg) => typeof cfg?.os === 'string' && cfg.os.startsWith(prefix));
+
+            core.setOutput('linux-matrix', JSON.stringify(byOsPrefix('ubuntu')));
+            core.setOutput('macos-matrix', JSON.stringify(byOsPrefix('macos')));
+            core.setOutput('windows-matrix', JSON.stringify(byOsPrefix('windows')));
+
+  build-linux:
     name: Build ${{ matrix.arch }} on ${{ matrix.os }}
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.linux-matrix != '[]'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(inputs.matrix-json) }}
+        include: ${{ fromJson(needs.prepare-matrix.outputs.linux-matrix) }}
     env:
-      AXIDEV_IO_RUN_INTEGRATION_TESTS: ${{ matrix.build-integration-tests && '1' || '0' }}
-      AXIDEV_IO_AUTO_CONFIRM: ${{ matrix.build-integration-tests && '1' || '0' }}
-      AXIDEV_IO_INTERACTIVE: ${{ matrix.build-integration-tests && '1' || '0' }}
       DISPLAY: ${{ matrix.enable-xvfb && ':99' || '' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ inputs.package-output && 0 || 1 }}
+          fetch-depth: ${{ matrix.package-output && 0 || 1 }}
 
-      # Linux dependencies
       - name: Install dependencies (Linux)
-        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -49,102 +81,192 @@ jobs:
             sudo chmod 666 /dev/uinput || true
           fi
 
-      # macOS dependencies
-      - name: Install dependencies (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew update
-          brew install cmake
-
-      # Windows MinGW setup
-      - name: Install MinGW-w64 (Windows)
-        if: startsWith(matrix.os, 'windows')
-        uses: egor-tensin/setup-mingw@v2
-        with:
-          platform: ${{ matrix.arch }}
-          static: 0
-          version: ${{ matrix.mingw-version || '13.2.0' }}
-
-      # Start Xvfb for GUI tests on Linux
       - name: Start Xvfb (Linux)
-        if: startsWith(matrix.os, 'ubuntu') && matrix.enable-xvfb
+        if: matrix.enable-xvfb
         run: |
           Xvfb :99 -screen 0 1024x768x24 & sleep 2
 
-      # Clean build directory
       - name: Clean stale build directory
         shell: bash
         run: rm -rf build
 
-      # Configure CMake
       - name: Configure (CMake)
         shell: bash
         run: |
           BUILD_TYPE="${{ matrix.build-type || 'Release' }}"
           CMAKE_ARGS="-S . -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE"
 
-          # Add test flags if requested
           if [ "${{ matrix.build-tests }}" = "true" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DAXIDEV_IO_BUILD_TESTS=ON"
           fi
 
-          if [ "${{ matrix.build-integration-tests }}" = "true" ]; then
-            CMAKE_ARGS="$CMAKE_ARGS -DAXIDEV_IO_BUILD_INTEGRATION_TESTS=ON"
-          fi
-
-          # Architecture-specific flags for macOS
-          if [[ "${{ matrix.os }}" == macos* ]]; then
-            CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}"
-          fi
-
-          # Generator and compiler for Windows
-          if [[ "${{ matrix.os }}" == windows* ]]; then
-            CMAKE_ARGS="$CMAKE_ARGS -G \"Unix Makefiles\" -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"
-          fi
-
-          # Custom generator if specified
           if [ -n "${{ matrix.cmake-generator }}" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -G \"${{ matrix.cmake-generator }}\""
           fi
 
           eval cmake $CMAKE_ARGS
 
-      # Build
       - name: Build (CMake)
         run: cmake --build build --config ${{ matrix.build-type || 'Release' }} --parallel
 
-      # Run tests with ctest
       - name: Run tests (ctest)
         if: matrix.run-tests
         env:
           CTEST_OUTPUT_ON_FAILURE: 1
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.build-type || 'Release' }}
 
-      # Install for packaging
       - name: Install
         if: matrix.package-output
         run: cmake --install build --prefix dist --config ${{ matrix.build-type || 'Release' }}
 
-      # Package for release (Unix)
       - name: Package (Unix)
-        if: matrix.package-output && !startsWith(matrix.os, 'windows')
+        if: matrix.package-output
         shell: bash
         env:
           INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           TAG="${INPUT_VERSION:-${GITHUB_REF#refs/tags/}}"
           mkdir -p packages
-          OS_NAME="${{ matrix.os }}"
-          if [[ "$OS_NAME" == ubuntu* ]]; then
-            OS_SIMPLE="linux"
-          elif [[ "$OS_NAME" == macos* ]]; then
-            OS_SIMPLE="macos"
-          fi
-          tar -C dist -czf "packages/axidev-io-${TAG}-${OS_SIMPLE}-${{ matrix.arch }}.tar.gz" .
+          tar -C dist -czf "packages/axidev-io-${TAG}-linux-${{ matrix.arch }}.tar.gz" .
 
-      # Package for release (Windows)
+      - name: Upload release package
+        if: matrix.package-output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name-prefix }}release-package-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            packages/*.tar.gz
+
+  build-macos:
+    name: Build ${{ matrix.arch }} on ${{ matrix.os }}
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.macos-matrix != '[]'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.macos-matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ matrix.package-output && 0 || 1 }}
+
+      - name: Install dependencies (macOS)
+        run: |
+          brew update
+          brew install cmake
+
+      - name: Clean stale build directory
+        shell: bash
+        run: rm -rf build
+
+      - name: Configure (CMake)
+        shell: bash
+        run: |
+          BUILD_TYPE="${{ matrix.build-type || 'Release' }}"
+          CMAKE_ARGS="-S . -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE"
+
+          if [ "${{ matrix.build-tests }}" = "true" ]; then
+            CMAKE_ARGS="$CMAKE_ARGS -DAXIDEV_IO_BUILD_TESTS=ON"
+          fi
+
+          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}"
+          if [ -n "${{ matrix.cmake-generator }}" ]; then
+            CMAKE_ARGS="$CMAKE_ARGS -G \"${{ matrix.cmake-generator }}\""
+          fi
+
+          eval cmake $CMAKE_ARGS
+
+      - name: Build (CMake)
+        run: cmake --build build --config ${{ matrix.build-type || 'Release' }} --parallel
+
+      - name: Run tests (ctest)
+        if: matrix.run-tests
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C ${{ matrix.build-type || 'Release' }}
+
+      - name: Install
+        if: matrix.package-output
+        run: cmake --install build --prefix dist --config ${{ matrix.build-type || 'Release' }}
+
+      - name: Package (Unix)
+        if: matrix.package-output
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
+        run: |
+          TAG="${INPUT_VERSION:-${GITHUB_REF#refs/tags/}}"
+          mkdir -p packages
+          tar -C dist -czf "packages/axidev-io-${TAG}-macos-${{ matrix.arch }}.tar.gz" .
+
+      - name: Upload release package
+        if: matrix.package-output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name-prefix }}release-package-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            packages/*.tar.gz
+
+  build-windows:
+    name: Build ${{ matrix.arch }} on ${{ matrix.os }}
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.windows-matrix != '[]'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.windows-matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ matrix.package-output && 0 || 1 }}
+
+      - name: Install MinGW-w64 (Windows)
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: ${{ matrix.arch }}
+          static: 0
+          version: ${{ matrix.mingw-version || '13.2.0' }}
+
+      - name: Clean stale build directory
+        shell: bash
+        run: rm -rf build
+
+      - name: Configure (CMake)
+        shell: bash
+        run: |
+          BUILD_TYPE="${{ matrix.build-type || 'Release' }}"
+          CMAKE_ARGS="-S . -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE"
+          CMAKE_ARGS="$CMAKE_ARGS -G \"Unix Makefiles\" -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++"
+
+          if [ "${{ matrix.build-tests }}" = "true" ]; then
+            CMAKE_ARGS="$CMAKE_ARGS -DAXIDEV_IO_BUILD_TESTS=ON"
+          fi
+
+          if [ -n "${{ matrix.cmake-generator }}" ]; then
+            CMAKE_ARGS="$CMAKE_ARGS -G \"${{ matrix.cmake-generator }}\""
+          fi
+
+          eval cmake $CMAKE_ARGS
+
+      - name: Build (CMake)
+        run: cmake --build build --config ${{ matrix.build-type || 'Release' }} --parallel
+
+      - name: Run tests (ctest)
+        if: matrix.run-tests
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest --test-dir build --output-on-failure -C ${{ matrix.build-type || 'Release' }}
+
+      - name: Install
+        if: matrix.package-output
+        run: cmake --install build --prefix dist --config ${{ matrix.build-type || 'Release' }}
+
       - name: Package (Windows)
-        if: matrix.package-output && startsWith(matrix.os, 'windows')
+        if: matrix.package-output
         shell: pwsh
         env:
           INPUT_VERSION: ${{ github.event.inputs.version || '' }}
@@ -153,93 +275,10 @@ jobs:
           New-Item -ItemType Directory -Path packages -Force | Out-Null
           Compress-Archive -Path "dist\*" -DestinationPath "packages/axidev-io-$tag-windows-${{ matrix.arch }}.zip" -Force
 
-      # Upload release packages
       - name: Upload release package
         if: matrix.package-output
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name-prefix }}release-package-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            packages/*.tar.gz
             packages/*.zip
-
-      # Find and upload integration test binary (Unix)
-      - name: Find integration test binary (Unix)
-        if: matrix.build-integration-tests && !startsWith(matrix.os, 'windows')
-        id: find-integration-binary-unix
-        shell: bash
-        run: |
-          found=$(find build -type f -name 'axidev-io-integration-tests*' -print -quit || true)
-          if [ -n "$found" ]; then
-            bname=$(basename "$found")
-            cp "$found" "$bname"
-            echo "path=$bname" >> $GITHUB_OUTPUT
-          else
-            echo "path=" >> $GITHUB_OUTPUT
-          fi
-
-      # Find and upload integration test binary (Windows)
-      - name: Find integration test binary (Windows)
-        if: matrix.build-integration-tests && startsWith(matrix.os, 'windows')
-        id: find-integration-binary-windows
-        shell: pwsh
-        run: |
-          $found = Get-ChildItem -Path build -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'axidev-io-integration-tests*.exe' } | Select-Object -First 1
-          if ($found) {
-            Copy-Item $found.FullName -Destination $found.Name
-            echo "path=$($found.Name)" >> $env:GITHUB_OUTPUT
-          } else {
-            echo "path=" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Upload integration test binary
-        if: matrix.build-integration-tests && ((steps.find-integration-binary-unix.outputs.path || '') != '' || (steps.find-integration-binary-windows.outputs.path || '') != '')
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.artifact-name-prefix }}integration-test-binary-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            axidev-io-integration-tests*
-            !axidev-io-integration-tests*.o
-            !axidev-io-integration-tests*.obj
-
-      # Find and upload test-consumer binary (Unix)
-      - name: Find test-consumer binary (Unix)
-        if: matrix.build-integration-tests && !startsWith(matrix.os, 'windows')
-        id: find-consumer-binary-unix
-        shell: bash
-        run: |
-          found=$(find build -type f \( -name 'axidev_io_consumer*' -o -name 'axidev-io-test-consumer*' \) -print -quit || true)
-          if [ -n "$found" ]; then
-            bname=$(basename "$found")
-            cp "$found" "$bname"
-            echo "path=$bname" >> $GITHUB_OUTPUT
-          else
-            echo "path=" >> $GITHUB_OUTPUT
-          fi
-
-      # Find and upload test-consumer binary (Windows)
-      - name: Find test-consumer binary (Windows)
-        if: matrix.build-integration-tests && startsWith(matrix.os, 'windows')
-        id: find-consumer-binary-windows
-        shell: pwsh
-        run: |
-          $found = Get-ChildItem -Path build -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'axidev_io_consumer*.exe' -or $_.Name -like 'axidev-io-test-consumer*.exe' } | Select-Object -First 1
-          if ($found) {
-            Copy-Item $found.FullName -Destination $found.Name
-            echo "path=$($found.Name)" >> $env:GITHUB_OUTPUT
-          } else {
-            echo "path=" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Upload test-consumer binary
-        if: matrix.build-integration-tests && ((steps.find-consumer-binary-unix.outputs.path || '') != '' || (steps.find-consumer-binary-windows.outputs.path || '') != '')
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.artifact-name-prefix }}test-consumer-binary-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            axidev_io_consumer*
-            axidev-io-test-consumer*
-            !axidev_io_consumer*.o
-            !axidev_io_consumer*.obj
-            !axidev-io-test-consumer*.o
-            !axidev-io-test-consumer*.obj
