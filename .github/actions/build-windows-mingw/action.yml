@@ -48,12 +48,20 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install MinGW-w64
-      uses: egor-tensin/setup-mingw@v2
+    - name: Set LLVM-MinGW target
+      id: setup
+      shell: bash
+      run: |
+        if [ "${{ inputs.arch }}" = "arm64" ]; then
+          echo "target=aarch64-w64-mingw32" >> $GITHUB_OUTPUT
+        else
+          echo "target=x86_64-w64-mingw32" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install LLVM-MinGW
+      uses: mstorsjo/setup-llvm-mingw@v1
       with:
-        platform: ${{ inputs.arch }}
-        static: 0
-        version: ${{ inputs.mingw-version }}
+        target: ${{ steps.setup.outputs.target }}
 
     - name: Clean stale build directory
       shell: bash
@@ -69,7 +77,8 @@ runs:
         CMAKE_ARGS=(-S . -B build -DCMAKE_BUILD_TYPE="$BUILD_TYPE")
 
         if [ -z '${{ inputs.cmake-generator }}' ]; then
-          CMAKE_ARGS+=( -G 'Unix Makefiles' -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ )
+          TARGET='${{ steps.setup.outputs.target }}'
+          CMAKE_ARGS+=( -G 'Ninja' -DCMAKE_C_COMPILER="${TARGET}-gcc" -DCMAKE_CXX_COMPILER="${TARGET}-g++" )
         else
           CMAKE_ARGS+=( -G '${{ inputs.cmake-generator }}' )
         fi
