@@ -1,14 +1,10 @@
-name: Build (Windows / MinGW)
-description: Configure, build, test, and optionally package axidev-io on Windows using MinGW.
+name: Build (Windows / MinGW-GCC)
+description: Configure, build, test, and optionally package axidev-io on Windows using MinGW-w64 GCC (linked against libstdc++).
 
 inputs:
   arch:
-    description: MinGW platform (e.g. x64, arm64)
+    description: MinGW platform (x64 or x86)
     required: true
-  mingw-version:
-    description: LLVM-MinGW release version (date tag)
-    required: false
-    default: "20251216"
   build-type:
     description: CMake build type
     required: false
@@ -48,44 +44,43 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set LLVM-MinGW target
+    - name: Set MinGW-w64 environment
       id: setup
       shell: bash
       run: |
-        if [ "${{ inputs.arch }}" = "arm64" ]; then
-          echo "target=aarch64-w64-mingw32" >> $GITHUB_OUTPUT
+        if [ "${{ inputs.arch }}" = "x86" ]; then
+          echo "msystem=MINGW32" >> $GITHUB_OUTPUT
+          echo "prefix=mingw-w64-i686" >> $GITHUB_OUTPUT
         else
-          echo "target=x86_64-w64-mingw32" >> $GITHUB_OUTPUT
+          echo "msystem=MINGW64" >> $GITHUB_OUTPUT
+          echo "prefix=mingw-w64-x86_64" >> $GITHUB_OUTPUT
         fi
 
-    - name: Install LLVM-MinGW
-      shell: bash
-      run: |
-        set -euo pipefail
-        VERSION="${{ inputs.mingw-version }}"
-        URL="https://github.com/mstorsjo/llvm-mingw/releases/download/${VERSION}/llvm-mingw-${VERSION}-ucrt-x86_64.zip"
-        echo "Downloading LLVM-MinGW $VERSION..."
-        curl -L -o llvm-mingw.zip "$URL"
-        echo "Extracting LLVM-MinGW..."
-        7z x llvm-mingw.zip -y > /dev/null
-        echo "${{ github.workspace }}/llvm-mingw-${VERSION}-ucrt-x86_64/bin" >> $GITHUB_PATH
+    - name: Setup MSYS2 with MinGW-w64 GCC
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: ${{ steps.setup.outputs.msystem }}
+        update: true
+        install: >-
+          ${{ steps.setup.outputs.prefix }}-gcc
+          ${{ steps.setup.outputs.prefix }}-cmake
+          ${{ steps.setup.outputs.prefix }}-ninja
+          make
 
     - name: Clean stale build directory
-      shell: bash
+      shell: msys2 {0}
       run: rm -rf build dist packages
 
     - name: Configure (CMake)
-      shell: bash
+      shell: msys2 {0}
       run: |
         set -euo pipefail
         BUILD_TYPE='${{ inputs.build-type }}'
 
-        # Default to Unix Makefiles with gcc/g++ unless overridden.
         CMAKE_ARGS=(-S . -B build -DCMAKE_BUILD_TYPE="$BUILD_TYPE")
 
         if [ -z '${{ inputs.cmake-generator }}' ]; then
-          TARGET='${{ steps.setup.outputs.target }}'
-          CMAKE_ARGS+=( -G 'Ninja' -DCMAKE_C_COMPILER="${TARGET}-gcc" -DCMAKE_CXX_COMPILER="${TARGET}-g++" )
+          CMAKE_ARGS+=( -G 'Ninja' )
         else
           CMAKE_ARGS+=( -G '${{ inputs.cmake-generator }}' )
         fi
@@ -98,21 +93,20 @@ runs:
           CMAKE_ARGS+=( -DAXIDEV_IO_BUILD_INTEGRATION_TESTS=ON )
         fi
 
-        # Prefer self-contained executables on MinGW by statically linking
-        # libstdc++/libgcc (avoids requiring LLVM-MinGW runtime DLLs).
+        # Statically link libstdc++/libgcc to avoid MinGW runtime DLL dependencies
         CMAKE_ARGS+=( -DAXIDEV_IO_MINGW_STATIC_RUNTIME=ON )
 
         cmake "${CMAKE_ARGS[@]}"
 
     - name: Build (CMake)
-      shell: bash
+      shell: msys2 {0}
       run: |
         set -euo pipefail
         cmake --build build --config '${{ inputs.build-type }}' --parallel
 
     - name: Run tests (ctest)
       if: ${{ inputs.run-tests == 'true' }}
-      shell: bash
+      shell: msys2 {0}
       env:
         CTEST_OUTPUT_ON_FAILURE: 1
       run: |
@@ -121,7 +115,7 @@ runs:
 
     - name: Install
       if: ${{ inputs.package-output == 'true' }}
-      shell: bash
+      shell: msys2 {0}
       run: |
         set -euo pipefail
         cmake --install build --prefix dist --config '${{ inputs.build-type }}'
