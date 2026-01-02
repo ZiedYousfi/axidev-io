@@ -4,7 +4,7 @@ from conan.tools.cmake import CMake, cmake_layout
 
 class AxidevIoRecipe(ConanFile):
     name = "axidev-io"
-    version = "0.3.0"
+    version = "0.3.1"
     package_type = "library"
 
     # Paramètres de base

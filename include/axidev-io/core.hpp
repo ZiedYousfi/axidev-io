@@ -13,10 +13,10 @@
 #ifndef AXIDEV_IO_VERSION
 // Default version; CMake can override these by defining AXIDEV_IO_VERSION_* via
 // -D flags if desired.
-#define AXIDEV_IO_VERSION "0.3.0"
+#define AXIDEV_IO_VERSION "0.3.1"
 #define AXIDEV_IO_VERSION_MAJOR 0
 #define AXIDEV_IO_VERSION_MINOR 3
-#define AXIDEV_IO_VERSION_PATCH 0
+#define AXIDEV_IO_VERSION_PATCH 1
 #endif
 
 // Symbol export macro to support building shared libraries on Windows.
