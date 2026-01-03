@@ -29,6 +29,8 @@
 #include <unordered_map>
 #include <xkbcommon/xkbcommon.h>
 
+#include "keyboard/common/linux_layout.hpp"
+
 namespace axidev::io::keyboard {
 
 /**
@@ -167,134 +169,42 @@ struct Sender::Impl {
       return;
     }
 
-    // Try to detect the actual keyboard layout
-    struct xkb_rule_names names = {nullptr, nullptr, nullptr, nullptr, nullptr};
-    std::string detectedLayout = detectKeyboardLayout();
+    // Try to detect the actual keyboard layout (and related XKB fields)
+    const auto detected = axidev::io::keyboard::detail::detectXkbRuleNames();
 
-    if (!detectedLayout.empty()) {
-      names.layout = detectedLayout.c_str();
-      AXIDEV_IO_LOG_INFO("Sender (uinput): detected layout '%s'",
-                       detectedLayout.c_str());
+    struct xkb_rule_names names = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    std::string dbg;
+    if (!detected.rules.empty()) {
+      names.rules = detected.rules.c_str();
+      dbg += "rules=" + detected.rules + " ";
+    }
+    if (!detected.model.empty()) {
+      names.model = detected.model.c_str();
+      dbg += "model=" + detected.model + " ";
+    }
+    if (!detected.layout.empty()) {
+      names.layout = detected.layout.c_str();
+      dbg += "layout=" + detected.layout + " ";
+    }
+    if (!detected.variant.empty()) {
+      names.variant = detected.variant.c_str();
+      dbg += "variant=" + detected.variant + " ";
+    }
+    if (!detected.options.empty()) {
+      names.options = detected.options.c_str();
+      dbg += "options=" + detected.options + " ";
+    }
+    if (!dbg.empty()) {
+      AXIDEV_IO_LOG_INFO("Sender (uinput): xkb names: %s", dbg.c_str());
     }
 
-    xkbKeymap = xkb_keymap_new_from_names(
-        xkbCtx, detectedLayout.empty() ? nullptr : &names,
-        XKB_KEYMAP_COMPILE_NO_FLAGS);
+    xkbKeymap =
+        xkb_keymap_new_from_names(xkbCtx, detected.empty() ? nullptr : &names,
+                                  XKB_KEYMAP_COMPILE_NO_FLAGS);
 
     if (!xkbKeymap) {
       AXIDEV_IO_LOG_ERROR("Sender (uinput): xkb_keymap_new_from_names() failed");
       return;
-    }
-
-    xkbState = xkb_state_new(xkbKeymap);
-    if (!xkbState) {
-      AXIDEV_IO_LOG_ERROR("Sender (uinput): xkb_state_new() failed");
-    }
-  }
-
-  /**
-   * @internal
-   * @brief Detect the keyboard layout to be used for xkb initialization.
-   *
-   * Detection strategy:
-   *  1) Use the `XKB_DEFAULT_LAYOUT` environment variable if present.
-   *  2) Parse `/etc/default/keyboard` for Debian/Ubuntu systems as a fallback.
-   *  3) Return an empty string when no layout information can be determined.
-   *
-   * @return Detected layout name (e.g., "us", "fr"), or an empty string if not
-   *         determinable.
-   */
-  std::string detectKeyboardLayout() {
-    // 1. Check XKB_DEFAULT_LAYOUT environment variable
-    const char *envLayout = std::getenv("XKB_DEFAULT_LAYOUT");
-    if (envLayout && envLayout[0] != '\0') {
-      AXIDEV_IO_LOG_DEBUG("Sender (uinput): layout from XKB_DEFAULT_LAYOUT: %s",
-                        envLayout);
-      return envLayout;
-    }
-
-    // 2. Try to read /etc/default/keyboard (Debian/Ubuntu)
-    std::ifstream kbdFile("/etc/default/keyboard");
-    if (kbdFile.is_open()) {
-      std::string line;
-      while (std::getline(kbdFile, line)) {
-        // Look for XKBLAYOUT="fr" or XKBLAYOUT=fr
-        if (line.find("XKBLAYOUT") != std::string::npos) {
-          size_t eqPos = line.find('=');
-          if (eqPos != std::string::npos) {
-            std::string value = line.substr(eqPos + 1);
-            // Remove quotes and whitespace
-            value.erase(std::remove(value.begin(), value.end(), '"'),
-                        value.end());
-            value.erase(std::remove(value.begin(), value.end(), '\''),
-                        value.end());
-            value.erase(std::remove(value.begin(), value.end(), ' '),
-                        value.end());
-            // Handle multiple layouts (e.g., "fr,us") - take first
-            size_t commaPos = value.find(',');
-            if (commaPos != std::string::npos) {
-              value = value.substr(0, commaPos);
-            }
-            if (!value.empty()) {
-              AXIDEV_IO_LOG_DEBUG(
-                  "Sender (uinput): layout from /etc/default/keyboard: %s",
-                  value.c_str());
-              return value;
-            }
-          }
-        }
-      }
-    }
-
-    // 3. Try localectl or setxkbmap -query via popen (optional, heavier)
-    FILE *pipe = popen(
-        "setxkbmap -query 2>/dev/null | grep layout | awk '{print $2}'", "r");
-    if (pipe) {
-      char buffer[64];
-      if (fgets(buffer, sizeof(buffer), pipe)) {
-        std::string layout(buffer);
-        // Remove trailing newline
-        layout.erase(std::remove(layout.begin(), layout.end(), '\n'),
-                     layout.end());
-        // Handle multiple layouts
-        size_t commaPos = layout.find(',');
-        if (commaPos != std::string::npos) {
-          layout = layout.substr(0, commaPos);
-        }
-        pclose(pipe);
-        if (!layout.empty()) {
-          AXIDEV_IO_LOG_DEBUG("Sender (uinput): layout from setxkbmap: %s",
-                            layout.c_str());
-          return layout;
-        }
-      } else {
-        pclose(pipe);
-      }
-    }
-
-    // 4. Check LANG/LC_ALL for hints (fallback heuristic)
-    const char *lang = std::getenv("LANG");
-    if (lang) {
-      std::string langStr(lang);
-      if (langStr.find("fr_") == 0)
-        return "fr";
-      if (langStr.find("de_") == 0)
-        return "de";
-      if (langStr.find("es_") == 0)
-        return "es";
-      if (langStr.find("it_") == 0)
-        return "it";
-      if (langStr.find("pt_") == 0)
-        return "pt";
-      if (langStr.find("ru_") == 0)
-        return "ru";
-      if (langStr.find("zh_") == 0)
-        return "zh";
-      if (langStr.find("ja_") == 0)
-        return "ja";
-      if (langStr.find("ko_") == 0)
-        return "ko";
-      // Add more as needed
     }
 
     AXIDEV_IO_LOG_DEBUG(

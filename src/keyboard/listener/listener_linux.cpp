@@ -32,6 +32,8 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "keyboard/common/linux_layout.hpp"
+
 namespace axidev::io::keyboard {
 
 namespace {
@@ -221,127 +223,13 @@ private:
     // system configuration file (/etc/default/keyboard). This helps ensure the
     // keymap used for translating evdev keycodes matches the user's actual
     // layout (e.g. non-QWERTY layouts).
-    std::string rulesStr, modelStr, layoutStr, variantStr, optionsStr;
+    const auto detected = axidev::io::keyboard::detail::detectXkbRuleNames();
 
-    // First consult common environment variables that various
-    // systems/compositors set for XKB.
-    if (const char *env = std::getenv("XKB_DEFAULT_RULES"))
-      rulesStr = env;
-    if (const char *env = std::getenv("XKB_DEFAULT_MODEL"))
-      modelStr = env;
-    if (const char *env = std::getenv("XKB_DEFAULT_LAYOUT"))
-      layoutStr = env;
-    if (const char *env = std::getenv("XKB_DEFAULT_VARIANT"))
-      variantStr = env;
-    if (const char *env = std::getenv("XKB_DEFAULT_OPTIONS"))
-      optionsStr = env;
-
-    // Fallback: parse Debian/Ubuntu-style /etc/default/keyboard if some pieces
-    // of information are missing. This file often contains the active layout
-    // information for local consoles and can supplement the environment.
-    if (rulesStr.empty() || modelStr.empty() || layoutStr.empty() ||
-        variantStr.empty() || optionsStr.empty()) {
-      std::ifstream f("/etc/default/keyboard");
-      if (f) {
-        std::string line;
-        while (std::getline(f, line)) {
-          // Strip comments and surrounding whitespace.
-          size_t comment = line.find('#');
-          if (comment != std::string::npos)
-            line = line.substr(0, comment);
-          auto trim = [](std::string &s) {
-            const char *ws = " \t\r\n";
-            size_t a = s.find_first_not_of(ws);
-            if (a == std::string::npos) {
-              s.clear();
-              return;
-            }
-            size_t b = s.find_last_not_of(ws);
-            s = s.substr(a, b - a + 1);
-          };
-          trim(line);
-          if (line.empty())
-            continue;
-          size_t eq = line.find('=');
-          if (eq == std::string::npos)
-            continue;
-          std::string key = line.substr(0, eq);
-          std::string val = line.substr(eq + 1);
-          trim(key);
-          trim(val);
-          // Remove surrounding quotes if present.
-          if (val.size() >= 2 && ((val.front() == '\"' && val.back() == '\"') ||
-                                  (val.front() == '\'' && val.back() == '\'')))
-            val = val.substr(1, val.size() - 2);
-          // Normalize key for comparison.
-          std::transform(key.begin(), key.end(), key.begin(),
-                         [](unsigned char c) { return std::toupper(c); });
-          if (key == "XKBRULES" || key == "XKB_DEFAULT_RULES")
-            rulesStr = val;
-          else if (key == "XKBMODEL" || key == "XKB_DEFAULT_MODEL")
-            modelStr = val;
-          else if (key == "XKBLAYOUT" || key == "XKB_DEFAULT_LAYOUT")
-            layoutStr = val;
-          else if (key == "XKBVARIANT" || key == "XKB_DEFAULT_VARIANT")
-            variantStr = val;
-          else if (key == "XKBOPTIONS" || key == "XKB_DEFAULT_OPTIONS")
-            optionsStr = val;
-        }
-      }
-    }
-    // If layout still missing, try to heuristically guess it from locale
-    // environment variables (LC_ALL, LC_MESSAGES, LANG). This provides a
-    // reasonable fallback on systems where XKB defaults are not available.
-    if (layoutStr.empty()) {
-      const char *localeEnv = std::getenv("LC_ALL");
-      if (!localeEnv)
-        localeEnv = std::getenv("LC_MESSAGES");
-      if (!localeEnv)
-        localeEnv = std::getenv("LANG");
-      if (localeEnv) {
-        std::string locale(localeEnv);
-        // Trim off encoding/variants (e.g. en_US.UTF-8 -> en_US)
-        size_t dot = locale.find('.');
-        if (dot != std::string::npos)
-          locale.resize(dot);
-        size_t at = locale.find('@');
-        if (at != std::string::npos)
-          locale.resize(at);
-        // Split language and region if present (e.g. en_US)
-        std::string lang = locale;
-        std::string region;
-        size_t us = locale.find('_');
-        if (us != std::string::npos) {
-          lang = locale.substr(0, us);
-          region = locale.substr(us + 1);
-        }
-        std::transform(lang.begin(), lang.end(), lang.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
-        std::transform(region.begin(), region.end(), region.begin(),
-                       [](unsigned char c) { return std::toupper(c); });
-        // Common heuristics:
-        if (lang == "en") {
-          // Prefer GB for en_GB, otherwise default to US
-          if (region == "GB" || region == "UK")
-            layoutStr = "gb";
-          else
-            layoutStr = "us";
-        } else if (lang == "pt" && region == "BR") {
-          layoutStr = "br";
-        } else if (lang == "da") {
-          layoutStr = "dk"; // Danish xkb uses 'dk'
-        } else if (lang == "sv") {
-          layoutStr = "se"; // Swedish xkb uses 'se'
-        } else if (!lang.empty()) {
-          // Fall back to using the language code as layout (fr, de, es, it,
-          // etc.)
-          layoutStr = lang;
-        }
-        AXIDEV_IO_LOG_DEBUG("Listener (Linux/libinput): guessed layout from "
-                          "locale: %s",
-                          layoutStr.c_str());
-      }
-    }
+    const std::string &rulesStr = detected.rules;
+    const std::string &modelStr = detected.model;
+    const std::string &layoutStr = detected.layout;
+    const std::string &variantStr = detected.variant;
+    const std::string &optionsStr = detected.options;
 
     struct xkb_rule_names names = {nullptr, nullptr, nullptr, nullptr, nullptr};
     std::string dbg;
