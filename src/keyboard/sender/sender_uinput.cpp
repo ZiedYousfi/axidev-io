@@ -207,9 +207,16 @@ struct Sender::Impl {
       return;
     }
 
-    AXIDEV_IO_LOG_DEBUG(
-        "Sender (uinput): could not detect layout, using system default");
-    return "";
+    xkbState = xkb_state_new(xkbKeymap);
+    if (!xkbState) {
+      AXIDEV_IO_LOG_ERROR("Sender (uinput): xkb_state_new() failed");
+      return;
+    }
+
+    if (detected.empty()) {
+      AXIDEV_IO_LOG_DEBUG(
+          "Sender (uinput): could not detect layout, using system default");
+    }
   }
 
   void initKeyMap() {
@@ -472,7 +479,10 @@ struct Sender::Impl {
     ev.type = static_cast<unsigned short>(type);
     ev.code = static_cast<unsigned short>(code);
     ev.value = val;
-    write(fd, &ev, sizeof(ev));
+    if (write(fd, &ev, sizeof(ev)) < 0) {
+      AXIDEV_IO_LOG_ERROR("Sender (uinput): write() failed: %s",
+                          strerror(errno));
+    }
   }
 
   /**
