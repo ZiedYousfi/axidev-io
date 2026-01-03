@@ -56,7 +56,7 @@ static void popLastUtf8Char(std::string &s) {
 
 class ListenerIntegrationTest : public ::testing::Test {
 protected:
-  void SetUp() override {
+  void SetUp() {
     AXIDEV_IO_LOG_INFO(
         "Listener Integration Suite: starting integration tests");
 
@@ -77,7 +77,7 @@ protected:
 
 TEST_F(ListenerIntegrationTest, ExactMatchTypedInputObserved) {
   AXIDEV_IO_LOG_INFO("Integration test: Listener Exact Match");
-  const std::string expected = "axidev-listener-test-123";
+  const std::string expected = "axidev-zw-123";
   std::cout << "[RUNNING] Type the following exact string into this terminal\n"
             << "and press [ENTER]:\n\n"
             << "  " << expected << "\n\n"
