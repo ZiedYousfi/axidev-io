@@ -640,11 +640,12 @@ AXIDEV_IO_API Key stringToKey(const std::string &input) {
       auto [it, inserted] = rev.emplace(lower, pair.first);
       if (inserted) {
         ++seeded;
-      } else {
-        AXIDEV_IO_LOG_DEBUG("stringToKey: canonical lowercase '%s' collides with "
-                          "existing mapping - keeping existing",
-                          lower.c_str());
       }
+      // else {
+      //   AXIDEV_IO_LOG_DEBUG("stringToKey: canonical lowercase '%s' collides with "
+      //                     "existing mapping - keeping existing",
+      //                     lower.c_str());
+      // }
     }
     AXIDEV_IO_LOG_DEBUG(
         "Seeding reverse map with %zu canonical entries (%zu inserted)",
