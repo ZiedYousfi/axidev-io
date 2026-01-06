@@ -28,9 +28,17 @@ Minimal usage example:
 #include <axidev-io/keyboard/sender.hpp>
 
 int main() {
-  axidev::io::keyboard::Sender sender;
+  using namespace axidev::io::keyboard;
+  Sender sender;
   if (sender.capabilities().canInjectKeys) {
-    sender.tap(axidev::io::keyboard::Key::A);
+    // All operations use KeyWithModifier
+    sender.tap({Key::A, Modifier::None});     // Tap 'a'
+    sender.tap({Key::A, Modifier::Shift});    // Tap 'A' (uppercase)
+    sender.tap({Key::C, Modifier::Ctrl});     // Ctrl+C
+
+    // Or parse from string
+    auto combo = stringToKeyWithModifier("Ctrl+S");
+    sender.tap(combo);
   }
   return 0;
 }
@@ -50,13 +58,12 @@ Basic usage (C):
 #include <stdio.h>
 
 /* Example keyboard listener callback */
-static void my_cb(uint32_t codepoint, axidev_io_keyboard_key_t key,
-                  axidev_io_keyboard_modifier_t mods, bool pressed, void *ud) {
+static void my_cb(uint32_t codepoint, axidev_io_keyboard_key_with_modifier_t key_mod,
+                  bool pressed, void *ud) {
   (void)ud;
-  (void)codepoint; /* Prioritize key/mods for portability */
-  char *name = axidev_io_keyboard_key_to_string(key);
-  printf("key=%s mods=0x%02x %s\n", name ? name : "?",
-         (unsigned)mods, pressed ? "pressed" : "released");
+  (void)codepoint; /* Prioritize key_mod for portability */
+  char *name = axidev_io_keyboard_key_to_string_with_modifier(key_mod);
+  printf("key=%s %s\n", name ? name : "?", pressed ? "pressed" : "released");
   if (name) axidev_io_free_string(name);
 }
 
@@ -74,7 +81,16 @@ int main(void) {
   axidev_io_keyboard_capabilities_t caps;
   axidev_io_keyboard_sender_get_capabilities(sender, &caps);
   if (caps.can_inject_keys) {
-    axidev_io_keyboard_sender_tap(sender, axidev_io_keyboard_string_to_key("A"));
+    /* All operations use axidev_io_keyboard_key_with_modifier_t */
+    axidev_io_keyboard_key_with_modifier_t key_mod;
+
+    /* Tap 'A' key */
+    axidev_io_keyboard_string_to_key_with_modifier("A", &key_mod);
+    axidev_io_keyboard_sender_tap(sender, key_mod);
+
+    /* Ctrl+C combo */
+    axidev_io_keyboard_string_to_key_with_modifier("Ctrl+C", &key_mod);
+    axidev_io_keyboard_sender_tap(sender, key_mod);
   } else if (caps.can_inject_text) {
     axidev_io_keyboard_sender_type_text_utf8(sender, "Hello from C API\n");
   }

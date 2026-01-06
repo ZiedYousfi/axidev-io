@@ -87,27 +87,33 @@ int main(int argc, char **argv) {
 
     } else if (arg == "--tap") {
       if (i + 1 >= argc) {
-        std::cerr << "--tap requires a key name (e.g., A, Enter, F1)\n";
+        std::cerr << "--tap requires a key combo (e.g., A, Shift+A, Ctrl+C)\n";
         return 1;
       }
-      std::string keyName = argv[++i];
-      axidev::io::keyboard::Key k = axidev::io::keyboard::stringToKey(keyName);
-      if (k == axidev::io::keyboard::Key::Unknown) {
-        std::cerr << "Unknown key: " << keyName << "\n";
+      std::string keyCombo = argv[++i];
+      auto kwm = axidev::io::keyboard::stringToKeyWithModifier(keyCombo);
+      if (kwm.key == axidev::io::keyboard::Key::Unknown) {
+        std::cerr << "Unknown key: " << keyCombo << "\n";
         continue;
       }
       if (!caps.canInjectKeys) {
         std::cerr << "Sender cannot inject physical keys on this platform\n";
         continue;
       }
-      std::cout << "Tapping key: " << axidev::io::keyboard::keyToString(k) << "\n";
-      AXIDEV_IO_LOG_INFO("example: tapping key=%s (%s)", keyName.c_str(),
-                       axidev::io::keyboard::keyToString(k).c_str());
-      bool ok = sender.tap(k);
+      std::cout << "Tapping: "
+                << axidev::io::keyboard::keyToStringWithModifier(
+                       kwm.key, kwm.requiredMods)
+                << "\n";
+      AXIDEV_IO_LOG_INFO(
+          "example: tapping key=%s mods=0x%02x",
+          axidev::io::keyboard::keyToString(kwm.key).c_str(),
+          static_cast<int>(static_cast<uint8_t>(kwm.requiredMods)));
+      bool ok = sender.tap(kwm);
       AXIDEV_IO_LOG_INFO("example: tap result=%u", static_cast<unsigned>(ok));
       std::cout << (ok ? "-> Success\n" : "-> Failed\n");
 
     } else if (arg == "--combo") {
+      // --combo is now an alias for --tap since tap accepts KeyWithModifier
       if (i + 1 >= argc) {
         std::cerr
             << "--combo requires a combo string (e.g., Shift+A, Ctrl+C)\n";
@@ -131,7 +137,7 @@ int main(int argc, char **argv) {
           "example: combo key=%s mods=0x%02x",
           axidev::io::keyboard::keyToString(kwm.key).c_str(),
           static_cast<int>(static_cast<uint8_t>(kwm.requiredMods)));
-      bool ok = sender.combo(kwm.requiredMods, kwm.key);
+      bool ok = sender.tap(kwm);
       AXIDEV_IO_LOG_INFO("example: combo result=%u", static_cast<unsigned>(ok));
       std::cout << (ok ? "-> Success\n" : "-> Failed\n");
 
@@ -187,15 +193,16 @@ int main(int argc, char **argv) {
       int seconds = std::stoi(argv[++i]);
       AXIDEV_IO_LOG_INFO("example: starting listener for %d seconds", seconds);
       axidev::io::keyboard::Listener listener;
-      bool started =
-          listener.start([](char32_t /*unused*/, axidev::io::keyboard::Key key,
-                            axidev::io::keyboard::Modifier mods, bool pressed) {
+      bool started = listener.start(
+          [](char32_t /*unused*/, axidev::io::keyboard::KeyWithModifier keyMod,
+             bool pressed) {
             // Use the modifier-aware key-to-string conversion to get a
             // human-readable representation that includes modifier state.
             // For example, if Shift+A is pressed, this will show "Shift+A"
             // rather than just "A" with a separate hex modifier dump.
             std::string keyWithMods =
-                axidev::io::keyboard::keyToStringWithModifier(key, mods);
+                axidev::io::keyboard::keyToStringWithModifier(
+                    keyMod.key, keyMod.requiredMods);
             std::cout << (pressed ? "[press]  " : "[release] ") << keyWithMods
                       << "\n";
             AXIDEV_IO_LOG_DEBUG("example: listener %s key=%s",

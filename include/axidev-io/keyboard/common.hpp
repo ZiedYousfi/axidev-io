@@ -6,6 +6,20 @@
  * This header defines logical key identifiers, modifier flags, backend
  * capability flags and small helper utilities used by both the `Sender`
  * (input injection) and `Listener` (global monitoring) subsystems.
+ *
+ * @note **API Design: KeyWithModifier is the consumer-facing type.**
+ *
+ * All communication between consumers and the library uses `KeyWithModifier`,
+ * which combines a logical `Key` with the required `Modifier` flags. This
+ * struct is the standard unit for representing keyboard input.
+ *
+ * The raw `Key` enum and `Modifier` enum are internal convenience types used
+ * within `KeyWithModifier`. Consumers should not use `Key` directly in API
+ * calls; instead, they should use `KeyWithModifier` (or the string parsing
+ * functions like `stringToKeyWithModifier`).
+ *
+ * Similarly, `KeyMapping` is an internal structure used for platform-specific
+ * keycode mappings and is not part of the public consumer API.
  */
 
 #include <axidev-io/core.hpp>
@@ -23,6 +37,9 @@ namespace keyboard {
  *
  * Stable numeric values are chosen to allow serialization and round-tripping.
  * These values represent logical keys, not platform-specific scan codes.
+ *
+ * @note This is an internal convenience type. Consumers should use
+ *       `KeyWithModifier` to represent keys in API calls, not raw `Key` values.
  */
 enum class Key : uint16_t {
   Unknown = 0,
@@ -367,15 +384,19 @@ inline bool hasModifier(Modifier state, Modifier flag) {
  * @struct KeyWithModifier
  * @brief Associates a logical Key with the modifiers required to produce it.
  *
- * This structure is used to represent keys that require modifiers to produce
- * a specific character. For example, on a US keyboard:
- * - '!' requires Shift + Num1
- * - '@' requires Shift + Num2
- * - 'A' (uppercase) requires Shift + Key::A
+ * **This is the consumer-facing type for all keyboard operations.**
  *
- * This allows the Listener to correctly identify which character was intended
- * when a key is pressed with modifiers, and enables the Sender to know which
- * modifiers to apply when typing a specific character.
+ * All Sender methods and Listener callbacks use `KeyWithModifier` to represent
+ * keyboard input. This struct combines a logical `Key` with the `Modifier`
+ * flags that should be applied.
+ *
+ * Examples:
+ * - `{Key::A, Modifier::None}` - lowercase 'a' (no modifiers)
+ * - `{Key::A, Modifier::Shift}` - uppercase 'A'
+ * - `{Key::C, Modifier::Ctrl}` - Ctrl+C
+ * - `{Key::S, Modifier::Ctrl | Modifier::Shift}` - Ctrl+Shift+S
+ *
+ * Use `stringToKeyWithModifier("Ctrl+C")` for convenient parsing from strings.
  */
 struct KeyWithModifier {
   Key key{Key::Unknown};                 ///< The base key
@@ -403,8 +424,14 @@ struct KeyWithModifier {
 
 /**
  * @struct KeyMapping
- * @brief Associates a platform keycode with the modifiers required to produce
- *        a specific character or Key.
+ * @brief Internal structure for platform keycode mappings.
+ *
+ * Associates a platform keycode with the modifiers required to produce
+ * a specific character or Key.
+ *
+ * @note This is an internal type used for keyboard layout discovery and
+ *       platform-specific keycode mappings. It is not part of the public
+ *       consumer API. Consumers should use `KeyWithModifier` instead.
  *
  * When discovering keyboard layout mappings, characters like '!' or '@' require
  * holding Shift (and sometimes other modifiers). This structure captures both

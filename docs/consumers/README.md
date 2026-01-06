@@ -2,6 +2,39 @@
 
 This document is for application authors who want to use `axidev-io` to inject input or listen for keyboard output in their apps. It focuses on quickstarts, common usage patterns, examples and runtime caveats.
 
+## Important: KeyWithModifier is the Consumer-Facing Type
+
+All communication between consumers and the library uses `KeyWithModifier` (C++) or `axidev_io_keyboard_key_with_modifier_t` (C). This struct combines a logical key with its required modifiers.
+
+**Internal types (not for direct consumer use):**
+
+- `Key` / `axidev_io_keyboard_key_t` - Raw key identifiers (internal convenience)
+- `KeyMapping` - Platform-specific keycode mappings (internal)
+
+**Consumer-facing type:**
+
+- `KeyWithModifier` / `axidev_io_keyboard_key_with_modifier_t` - Always use this for API calls
+
+Example:
+
+```cpp
+// C++ - Always use KeyWithModifier
+sender.tap({Key::A, Modifier::None});       // Tap 'a'
+sender.tap({Key::A, Modifier::Shift});      // Tap 'A' (uppercase)
+sender.tap({Key::C, Modifier::Ctrl});       // Ctrl+C
+
+// Or parse from string
+auto kwm = stringToKeyWithModifier("Ctrl+Shift+S");
+sender.tap(kwm);
+```
+
+```c
+// C - Always use axidev_io_keyboard_key_with_modifier_t
+axidev_io_keyboard_key_with_modifier_t key_mod;
+axidev_io_keyboard_string_to_key_with_modifier("Ctrl+C", &key_mod);
+axidev_io_keyboard_sender_tap(sender, key_mod);
+```
+
 ## Quickstart — build & install
 
 Build the project (Release shared library):
@@ -25,19 +58,27 @@ target_link_libraries(myapp PRIVATE axidev::io)
 
 Include the specific headers for the public API you need:
 
-```
+```cpp
 #include <axidev-io/keyboard/sender.hpp>
 #include <iostream>
 
 int main() {
-  axidev::io::keyboard::Sender sender;
+  using namespace axidev::io::keyboard;
+  Sender sender;
   auto caps = sender.capabilities();
   std::cout << "canInjectKeys: " << caps.canInjectKeys << "\n";
 
   if (caps.canInjectText) {
     sender.typeText("Hello from axidev-io");
   } else if (caps.canInjectKeys) {
-    sender.tap(axidev::io::keyboard::Key::A);
+    // Use KeyWithModifier for all key operations
+    sender.tap({Key::A, Modifier::None});          // Tap 'a'
+    sender.tap({Key::A, Modifier::Shift});         // Tap 'A' (uppercase)
+    sender.tap({Key::C, Modifier::Ctrl});          // Ctrl+C
+
+    // Or parse from string for convenience
+    auto saveCombo = stringToKeyWithModifier("Ctrl+S");
+    sender.tap(saveCombo);
   }
   return 0;
 }
@@ -47,9 +88,9 @@ int main() {
 
 - Check `capabilities()` at runtime to decide whether to:
   - call `typeText()` for direct Unicode injection, or
-  - use `tap()` / `keyDown()` + `keyUp()` for physical key events.
-- Use `combo(mods, key)` to safely perform shortcuts (it will hold modifiers, tap the key, then release modifiers).
-- Use `setKeyDelay()` to tune the timing of `tap`/`combo` if necessary for fragile apps.
+  - use `tap()` with `KeyWithModifier` for physical key events.
+- All key operations use `KeyWithModifier` - there's no separate `combo()` method.
+- Use `setKeyDelay()` to tune the timing of `tap` if necessary for fragile apps.
 
 ### Modifier-aware key handling
 
@@ -63,6 +104,7 @@ Example usage:
 
 ```cpp
 #include <axidev-io/keyboard/common.hpp>
+#include <axidev-io/keyboard/sender.hpp>
 #include <iostream>
 
 using namespace axidev::io::keyboard;
@@ -77,8 +119,9 @@ std::cout << "Has Shift: " << hasModifier(kwm.requiredMods, Modifier::Shift) << 
 std::string combo = keyToStringWithModifier(kwm.key, kwm.requiredMods);
 std::cout << "Combo: " << combo << "\n";  // "Shift+Ctrl+S"
 
-// Execute the combo
-sender.combo(kwm.requiredMods, kwm.key);
+// Execute the combo using tap (handles modifiers automatically)
+Sender sender;
+sender.tap(kwm);
 ```
 
 ### Layout-aware key mapping

@@ -69,12 +69,12 @@ struct TestState {
  * @brief Global listener callback handler.
  *
  * This function processes keyboard events and updates the provided TestState.
- * It favors logical Key and Modifier information over codepoints to show
- * that listeners can be implemented without relying on potentially brittle
- * codepoint mapping.
+ * It uses the codepoint provided by the listener (which is derived from the
+ * logical key and modifier state) for printable characters to avoid complex
+ * manual mapping logic.
  */
-static void handleListenerEvent(TestState &state, char32_t /*cp*/, Key key,
-                                Modifier mods, bool pressed) {
+static void handleListenerEvent(TestState &state, char32_t cp,
+                                KeyWithModifier keyMod, bool pressed) {
   // Collect characters on key release (pressed == false) to better match
   // the character delivered to the terminal/STDIN on most platforms.
   if (pressed) {
@@ -82,32 +82,28 @@ static void handleListenerEvent(TestState &state, char32_t /*cp*/, Key key,
   }
 
   std::lock_guard<std::mutex> lk(state.mtx);
-  if (key == Key::Backspace) {
+  if (keyMod.key == Key::Backspace) {
     popLastUtf8Char(state.observed);
     AXIDEV_IO_LOG_DEBUG("Listener test cb: backspace - observed='%s'",
                         state.observed.c_str());
-  } else if (key == Key::Enter) {
+  } else if (keyMod.key == Key::Enter) {
     state.saw_enter = true;
     AXIDEV_IO_LOG_DEBUG("Listener test cb: enter - observed='%s'",
                         state.observed.c_str());
     state.cv.notify_one();
-  } else if (key >= Key::A && key <= Key::Z) {
-    std::string s = keyToString(key);
-    char c = s[0];
-    if (!hasModifier(mods, Modifier::Shift) &&
-        !hasModifier(mods, Modifier::CapsLock)) {
-      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    state.observed += c;
-  } else if (key >= Key::Num0 && key <= Key::Num9) {
-    state.observed += keyToString(key);
-  } else if (key == Key::Minus) {
-    state.observed += '-';
+  } else if (cp != 0) {
+    appendUtf8(state.observed, cp);
+    AXIDEV_IO_LOG_DEBUG(
+        "Listener test cb: char cp=%u ('%s') observed='%s'",
+        static_cast<unsigned>(cp),
+        keyToStringWithModifier(keyMod.key, keyMod.requiredMods).c_str(),
+        state.observed.c_str());
   } else {
     // Use modifier-aware key-to-string for clearer debug output
     AXIDEV_IO_LOG_DEBUG(
         "Listener test cb: non-printable or unhandled key=%s observed='%s'",
-        keyToStringWithModifier(key, mods).c_str(), state.observed.c_str());
+        keyToStringWithModifier(keyMod.key, keyMod.requiredMods).c_str(),
+        state.observed.c_str());
   }
 }
 
@@ -145,8 +141,8 @@ TEST_F(ListenerIntegrationTest, ExactMatchTypedInputObserved) {
   TestState state;
   Listener listener;
 
-  auto cb = [&](char32_t /*cp*/, Key key, Modifier mods, bool pressed) {
-    handleListenerEvent(state, 0, key, mods, pressed);
+  auto cb = [&](char32_t cp, KeyWithModifier keyMod, bool pressed) {
+    handleListenerEvent(state, cp, keyMod, pressed);
   };
 
   bool ok = listener.start(cb);
@@ -196,8 +192,8 @@ TEST_F(ListenerIntegrationTest, BackspaceHandling) {
   TestState state;
   Listener listener;
 
-  auto cb = [&](char32_t /*cp*/, Key key, Modifier mods, bool pressed) {
-    handleListenerEvent(state, 0, key, mods, pressed);
+  auto cb = [&](char32_t cp, KeyWithModifier keyMod, bool pressed) {
+    handleListenerEvent(state, cp, keyMod, pressed);
   };
 
   bool ok = listener.start(cb);
@@ -243,8 +239,8 @@ TEST_F(ListenerIntegrationTest, ModifiersAndShiftState) {
   TestState state;
   Listener listener;
 
-  auto cb = [&](char32_t /*cp*/, Key key, Modifier mods, bool pressed) {
-    handleListenerEvent(state, 0, key, mods, pressed);
+  auto cb = [&](char32_t cp, KeyWithModifier keyMod, bool pressed) {
+    handleListenerEvent(state, cp, keyMod, pressed);
   };
 
   bool ok = listener.start(cb);

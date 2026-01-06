@@ -379,7 +379,8 @@ private:
       cbCopy = self->callback;
     }
     if (cbCopy) {
-      cbCopy(static_cast<char32_t>(codepoint), mapped, mods, pressed);
+      cbCopy(static_cast<char32_t>(codepoint), KeyWithModifier(mapped, mods),
+             pressed);
     }
 
     {
@@ -400,14 +401,14 @@ private:
   }
 
   // Safely invoke user callback
-  void invokeCallback(char32_t cp, Key k, Modifier mods, bool pressed) {
+  void invokeCallback(char32_t cp, KeyWithModifier keyMod, bool pressed) {
     Callback cbCopy;
     {
       std::lock_guard<std::mutex> lk(cbMutex);
       cbCopy = callback;
     }
     if (cbCopy) {
-      cbCopy(cp, k, mods, pressed);
+      cbCopy(cp, keyMod, pressed);
     }
   }
 

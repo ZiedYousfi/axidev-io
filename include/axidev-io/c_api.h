@@ -9,6 +9,17 @@
  * `axidev::io::keyboard::Listener` classes, providing cross-platform keyboard
  * input injection and global keyboard event monitoring.
  *
+ * @note **API Design: KeyWithModifier is the consumer-facing type.**
+ *
+ * All sender and listener APIs use `axidev_io_keyboard_key_with_modifier_t` to
+ * represent a key combined with its required modifiers. This struct is the
+ * standard unit of communication between consumers and the library.
+ *
+ * The raw key type (`axidev_io_keyboard_key_t`) and modifier type
+ * (`axidev_io_keyboard_modifier_t`) are internal convenience types. Consumers
+ * should always use `axidev_io_keyboard_key_with_modifier_t` when interacting
+ * with the API.
+ *
  * Notes:
  *  - The C API is intentionally thin: it exposes opaque keyboard
  * sender/listener handles and a small set of helper functions to operate them.
@@ -36,7 +47,14 @@
  *   axidev_io_keyboard_capabilities_t caps;
  *   axidev_io_keyboard_sender_get_capabilities(s, &caps);
  *   if (caps.can_inject_keys) {
- *     axidev_io_keyboard_sender_tap(s, axidev_io_keyboard_string_to_key("A"));
+ *     // Parse "A" to get key with no modifiers
+ *     axidev_io_keyboard_key_with_modifier_t key_mod;
+ *     axidev_io_keyboard_string_to_key_with_modifier("A", &key_mod);
+ *     axidev_io_keyboard_sender_tap(s, key_mod);
+ *
+ *     // For Ctrl+C combo:
+ *     axidev_io_keyboard_string_to_key_with_modifier("Ctrl+C", &key_mod);
+ *     axidev_io_keyboard_sender_tap(s, key_mod);
  *   }
  *
  *   axidev_io_keyboard_sender_destroy(s);
@@ -97,6 +115,15 @@ typedef uint8_t axidev_io_keyboard_modifier_t; /* bitmask, corresponds to
                                                 axidev::io::Modifier */
 
 /**
+ * @struct axidev_io_keyboard_key_with_modifier_t
+ * @brief Represents a logical key combined with its required modifiers.
+ */
+typedef struct axidev_io_keyboard_key_with_modifier_t {
+  axidev_io_keyboard_key_t key;
+  axidev_io_keyboard_modifier_t mods;
+} axidev_io_keyboard_key_with_modifier_t;
+
+/**
  * @brief Common modifier bit masks for `axidev_io_modifier_t`.
  *
  * These flags can be tested or combined when manipulating modifier state via
@@ -151,18 +178,16 @@ typedef struct axidev_io_keyboard_capabilities_t {
  *
  * @param codepoint Unicode codepoint produced by the key event (0 if none).
  *                  This value is provided for convenience but is often not
- *                  needed; usage of @p key and @p mods is generally preferred
+ *                  needed; usage of @p key_mod is generally preferred
  *                  for consistency and portability across backends.
- * @param key Logical key id (axidev_io_keyboard_key_t; 0 if unknown).
- * @param mods Current modifier bitmask (axidev_io_modifier_t).
+ * @param key_mod Logical key and modifier state.
  * @param pressed True for key press, false for key release.
  * @param user_data Opaque pointer provided by the caller to
  * `axidev_io_keyboard_listener_start`.
  */
-typedef void (*axidev_io_keyboard_listener_cb)(uint32_t codepoint,
-                                             axidev_io_keyboard_key_t key,
-                                             axidev_io_keyboard_modifier_t mods,
-                                             bool pressed, void *user_data);
+typedef void (*axidev_io_keyboard_listener_cb)(
+    uint32_t codepoint, axidev_io_keyboard_key_with_modifier_t key_mod,
+    bool pressed, void *user_data);
 
 /** @name Keyboard Sender (keyboard input injection)
  * @brief Functions to create and operate a keyboard Sender for injecting
@@ -225,33 +250,46 @@ AXIDEV_IO_API bool
 axidev_io_keyboard_sender_request_permissions(axidev_io_keyboard_sender_t sender);
 
 /**
- * @brief Simulate a physical key press.
+ * @brief Simulate a physical key press with modifiers.
+ *
+ * The modifiers in `key_mod.mods` are pressed before the key.
+ *
  * @param sender Sender handle.
- * @param key Logical key to press.
+ * @param key_mod Key with modifiers to press.
+ * @return true on success; false on failure.
+ */
+AXIDEV_IO_API bool axidev_io_keyboard_sender_key_down(
+    axidev_io_keyboard_sender_t sender,
+    axidev_io_keyboard_key_with_modifier_t key_mod);
+
+/**
+ * @brief Simulate a physical key release with modifiers.
+ *
+ * Releases the key and any modifiers specified in `key_mod.mods`.
+ *
+ * @param sender Sender handle.
+ * @param key_mod Key with modifiers to release.
+ * @return true on success; false on failure.
+ */
+AXIDEV_IO_API bool axidev_io_keyboard_sender_key_up(
+    axidev_io_keyboard_sender_t sender,
+    axidev_io_keyboard_key_with_modifier_t key_mod);
+
+/**
+ * @brief Convenience: tap a key with its modifiers (press then release).
+ *
+ * This is the primary method for sending a key event. It handles:
+ * 1. Pressing the required modifiers
+ * 2. Pressing and releasing the key
+ * 3. Releasing the modifiers
+ *
+ * @param sender Sender handle.
+ * @param key_mod Key with modifiers to tap.
  * @return true on success; false on failure.
  */
 AXIDEV_IO_API bool
-axidev_io_keyboard_sender_key_down(axidev_io_keyboard_sender_t sender,
-                                 axidev_io_keyboard_key_t key);
-
-/**
- * @brief Simulate a physical key release.
- * @param sender Sender handle.
- * @param key Logical key to release.
- * @return true on success; false on failure.
- */
-AXIDEV_IO_API bool
-axidev_io_keyboard_sender_key_up(axidev_io_keyboard_sender_t sender,
-                               axidev_io_keyboard_key_t key);
-
-/**
- * @brief Convenience: tap a key (press then release).
- * @param sender Sender handle.
- * @param key Logical key to tap.
- * @return true on success; false on failure.
- */
-AXIDEV_IO_API bool axidev_io_keyboard_sender_tap(axidev_io_keyboard_sender_t sender,
-                                             axidev_io_keyboard_key_t key);
+axidev_io_keyboard_sender_tap(axidev_io_keyboard_sender_t sender,
+                              axidev_io_keyboard_key_with_modifier_t key_mod);
 
 /**
  * @brief Get the currently active modifiers.
@@ -288,17 +326,6 @@ axidev_io_keyboard_sender_release_modifier(axidev_io_keyboard_sender_t sender,
  */
 AXIDEV_IO_API bool
 axidev_io_keyboard_sender_release_all_modifiers(axidev_io_keyboard_sender_t sender);
-
-/**
- * @brief Execute a key combo: press modifiers, tap key, release modifiers.
- * @param sender Sender handle.
- * @param mods Modifier bitmask to hold during the combo.
- * @param key Key to tap while modifiers are held.
- * @return true on success; false on failure.
- */
-AXIDEV_IO_API bool axidev_io_keyboard_sender_combo(axidev_io_keyboard_sender_t sender,
-                                               axidev_io_keyboard_modifier_t mods,
-                                               axidev_io_keyboard_key_t key);
 
 /**
  * @brief Inject UTF-8 text directly (layout-independent on supporting
@@ -412,32 +439,29 @@ AXIDEV_IO_API char *axidev_io_keyboard_key_to_string(axidev_io_keyboard_key_t ke
 AXIDEV_IO_API axidev_io_keyboard_key_t axidev_io_keyboard_string_to_key(const char *name);
 
 /**
- * @brief Convert a Key and modifiers to a heap-allocated, null-terminated
- * string.
+ * @brief Convert a KeyWithModifier to a heap-allocated, null-terminated string.
  *
  * Returns a string that includes modifier prefixes, e.g., "Shift+A" or
  * "Ctrl+C".
  *
- * @param key Key to convert.
- * @param mods Modifier bitmask to include in the output.
+ * @param key_mod Key and modifier state to convert.
  * @return char* Heap-allocated string with modifiers and key (caller must free
  * with `axidev_io_free_string`), or NULL on allocation failure.
  */
 AXIDEV_IO_API char *axidev_io_keyboard_key_to_string_with_modifier(
-    axidev_io_keyboard_key_t key, axidev_io_keyboard_modifier_t mods);
+    axidev_io_keyboard_key_with_modifier_t key_mod);
 
 /**
- * @brief Parse a key combo string (e.g., "Shift+A", "Ctrl+Shift+C") into key
- * and modifiers.
+ * @brief Parse a key combo string (e.g., "Shift+A", "Ctrl+Shift+C") into
+ * a KeyWithModifier.
  *
  * @param combo Null-terminated string with optional modifier prefixes.
- * @param out_key Output pointer for the parsed key (must not be NULL).
- * @param out_mods Output pointer for the parsed modifiers (must not be NULL).
+ * @param out_key_mod Output pointer for the parsed key and modifiers (must not
+ * be NULL).
  * @return true on successful parse; false if combo is NULL or parsing fails.
  */
 AXIDEV_IO_API bool axidev_io_keyboard_string_to_key_with_modifier(
-    const char *combo, axidev_io_keyboard_key_t *out_key,
-    axidev_io_keyboard_modifier_t *out_mods);
+    const char *combo, axidev_io_keyboard_key_with_modifier_t *out_key_mod);
 
 /**
  * @brief Get the library version string.

@@ -277,81 +277,106 @@ bool Sender::requestPermissions() {
   return m_impl->ready;
 }
 
-bool Sender::keyDown(Key key) {
-  AXIDEV_IO_LOG_DEBUG("Sender::keyDown(%s)", keyToString(key).c_str());
-  // Update modifier state if pressing a modifier
-  switch (key) {
-  case Key::ShiftLeft:
-  case Key::ShiftRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Shift;
-    break;
-  case Key::CtrlLeft:
-  case Key::CtrlRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Ctrl;
-    break;
-  case Key::AltLeft:
-  case Key::AltRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Alt;
-    break;
-  case Key::SuperLeft:
-  case Key::SuperRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Super;
-    break;
-  default:
-    break;
+// Internal helper to send a raw key event (used by public API)
+bool Sender::sendRawKey(Key key, bool down) {
+  if (down) {
+    // Update modifier state if pressing a modifier
+    switch (key) {
+    case Key::ShiftLeft:
+    case Key::ShiftRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Shift;
+      break;
+    case Key::CtrlLeft:
+    case Key::CtrlRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Ctrl;
+      break;
+    case Key::AltLeft:
+    case Key::AltRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Alt;
+      break;
+    case Key::SuperLeft:
+    case Key::SuperRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Super;
+      break;
+    default:
+      break;
+    }
+  } else {
+    // Update modifier state if releasing a modifier
+    switch (key) {
+    case Key::ShiftLeft:
+    case Key::ShiftRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
+                                ~static_cast<unsigned int>(Modifier::Shift));
+      break;
+    case Key::CtrlLeft:
+    case Key::CtrlRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
+                                ~static_cast<unsigned int>(Modifier::Ctrl));
+      break;
+    case Key::AltLeft:
+    case Key::AltRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
+                                ~static_cast<unsigned int>(Modifier::Alt));
+      break;
+    case Key::SuperLeft:
+    case Key::SuperRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
+                                ~static_cast<unsigned int>(Modifier::Super));
+      break;
+    default:
+      break;
+    }
   }
-  bool ok = m_impl->sendKey(key, true);
-  AXIDEV_IO_LOG_DEBUG("Sender::keyDown(%s) result=%u", keyToString(key).c_str(),
-                    static_cast<unsigned>(ok));
+  return m_impl->sendKey(key, down);
+}
+
+bool Sender::keyDown(KeyWithModifier keyMod) {
+  AXIDEV_IO_LOG_DEBUG(
+      "Sender::keyDown(%s)",
+      keyToStringWithModifier(keyMod.key, keyMod.requiredMods).c_str());
+  // Press required modifiers first
+  if (!holdModifier(keyMod.requiredMods)) {
+    return false;
+  }
+  bool ok = sendRawKey(keyMod.key, true);
+  AXIDEV_IO_LOG_DEBUG("Sender::keyDown result=%u", static_cast<unsigned>(ok));
   return ok;
 }
 
-bool Sender::keyUp(Key key) {
-  AXIDEV_IO_LOG_DEBUG("Sender::keyUp(%s)", keyToString(key).c_str());
-  bool result = m_impl->sendKey(key, false);
-  // Update modifier state if releasing a modifier
-  switch (key) {
-  case Key::ShiftLeft:
-  case Key::ShiftRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
-                              ~static_cast<unsigned int>(Modifier::Shift));
-    break;
-  case Key::CtrlLeft:
-  case Key::CtrlRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
-                              ~static_cast<unsigned int>(Modifier::Ctrl));
-    break;
-  case Key::AltLeft:
-  case Key::AltRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
-                              ~static_cast<unsigned int>(Modifier::Alt));
-    break;
-  case Key::SuperLeft:
-  case Key::SuperRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<unsigned int>(m_impl->currentMods) &
-                              ~static_cast<unsigned int>(Modifier::Super));
-    break;
-  default:
-    break;
-  }
-  AXIDEV_IO_LOG_DEBUG("Sender::keyUp(%s) result=%u", keyToString(key).c_str(),
-                    static_cast<unsigned>(result));
+bool Sender::keyUp(KeyWithModifier keyMod) {
+  AXIDEV_IO_LOG_DEBUG(
+      "Sender::keyUp(%s)",
+      keyToStringWithModifier(keyMod.key, keyMod.requiredMods).c_str());
+  bool result = sendRawKey(keyMod.key, false);
+  // Release modifiers that were specified
+  releaseModifier(keyMod.requiredMods);
+  AXIDEV_IO_LOG_DEBUG("Sender::keyUp result=%u", static_cast<unsigned>(result));
   return result;
 }
 
-bool Sender::tap(Key key) {
-  AXIDEV_IO_LOG_DEBUG("Sender::tap(%s)", keyToString(key).c_str());
-  if (!keyDown(key)) {
+bool Sender::tap(KeyWithModifier keyMod) {
+  AXIDEV_IO_LOG_DEBUG(
+      "Sender::tap(%s)",
+      keyToStringWithModifier(keyMod.key, keyMod.requiredMods).c_str());
+  // Hold modifiers, tap key, release modifiers
+  if (!holdModifier(keyMod.requiredMods)) {
     return false;
   }
   m_impl->delay();
-  bool ok = keyUp(key);
-  AXIDEV_IO_LOG_DEBUG("Sender::tap(%s) result=%u", keyToString(key).c_str(),
-                    static_cast<unsigned>(ok));
+  if (!sendRawKey(keyMod.key, true)) {
+    releaseModifier(keyMod.requiredMods);
+    return false;
+  }
+  m_impl->delay();
+  bool ok = sendRawKey(keyMod.key, false);
+  m_impl->delay();
+  releaseModifier(keyMod.requiredMods);
+  AXIDEV_IO_LOG_DEBUG("Sender::tap result=%u", static_cast<unsigned>(ok));
   return ok;
 }
 
@@ -366,13 +391,13 @@ bool Sender::holdModifier(Modifier mod) {
   AXIDEV_IO_LOG_DEBUG("Sender::holdModifier(mod=%u)", static_cast<unsigned>(mod));
   bool allModifiersPressed = true;
   if (hasModifier(mod, Modifier::Shift))
-    allModifiersPressed &= keyDown(Key::ShiftLeft);
+    allModifiersPressed &= sendRawKey(Key::ShiftLeft, true);
   if (hasModifier(mod, Modifier::Ctrl))
-    allModifiersPressed &= keyDown(Key::CtrlLeft);
+    allModifiersPressed &= sendRawKey(Key::CtrlLeft, true);
   if (hasModifier(mod, Modifier::Alt))
-    allModifiersPressed &= keyDown(Key::AltLeft);
+    allModifiersPressed &= sendRawKey(Key::AltLeft, true);
   if (hasModifier(mod, Modifier::Super))
-    allModifiersPressed &= keyDown(Key::SuperLeft);
+    allModifiersPressed &= sendRawKey(Key::SuperLeft, true);
   AXIDEV_IO_LOG_DEBUG(
       "Sender::holdModifier result=%u currentMods=%u",
       static_cast<unsigned>(allModifiersPressed),
@@ -385,13 +410,13 @@ bool Sender::releaseModifier(Modifier mod) {
                     static_cast<unsigned>(mod));
   bool allModifiersReleased = true;
   if (hasModifier(mod, Modifier::Shift))
-    allModifiersReleased &= keyUp(Key::ShiftLeft);
+    allModifiersReleased &= sendRawKey(Key::ShiftLeft, false);
   if (hasModifier(mod, Modifier::Ctrl))
-    allModifiersReleased &= keyUp(Key::CtrlLeft);
+    allModifiersReleased &= sendRawKey(Key::CtrlLeft, false);
   if (hasModifier(mod, Modifier::Alt))
-    allModifiersReleased &= keyUp(Key::AltLeft);
+    allModifiersReleased &= sendRawKey(Key::AltLeft, false);
   if (hasModifier(mod, Modifier::Super))
-    allModifiersReleased &= keyUp(Key::SuperLeft);
+    allModifiersReleased &= sendRawKey(Key::SuperLeft, false);
   AXIDEV_IO_LOG_DEBUG(
       "Sender::releaseModifier result=%u currentMods=%u",
       static_cast<unsigned>(allModifiersReleased),
@@ -406,21 +431,6 @@ bool Sender::releaseAllModifiers() {
   AXIDEV_IO_LOG_DEBUG("Sender::releaseAllModifiers result=%u",
                     static_cast<unsigned>(ok));
   return ok;
-}
-
-bool Sender::combo(Modifier mods, Key key) {
-  AXIDEV_IO_LOG_DEBUG("Sender::combo(mods=%u key=%s)",
-                    static_cast<unsigned>(mods), keyToString(key).c_str());
-  if (!holdModifier(mods)) {
-    return false;
-  }
-  m_impl->delay();
-  bool tapResult = tap(key);
-  m_impl->delay();
-  releaseModifier(mods);
-  AXIDEV_IO_LOG_DEBUG("Sender::combo result=%u",
-                    static_cast<unsigned>(tapResult));
-  return tapResult;
 }
 
 bool Sender::typeText(const std::u32string &text) {

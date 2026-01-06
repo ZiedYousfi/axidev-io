@@ -8,14 +8,28 @@
  * layout-aware physical key injection and text injection where supported by the
  * platform.
  *
+ * @note **API Design: KeyWithModifier is the consumer-facing type.**
+ *
+ * All public sender methods accept `KeyWithModifier` to represent a key
+ * combined with its required modifiers. This ensures consistent, unambiguous
+ * key input across the API. The raw `Key` enum is an internal convenience type
+ * and should not be used directly by consumers; always pair a `Key` with its
+ * `Modifier` using `KeyWithModifier`.
+ *
  * @par Usage:
  * @code{.cpp}
  * #include <axidev-io/keyboard/sender.hpp>
  *
  * int main() {
- *   axidev::io::keyboard::Sender sender;
+ *   using namespace axidev::io::keyboard;
+ *   Sender sender;
  *   if (sender.capabilities().canInjectKeys) {
- *     sender.tap(axidev::io::keyboard::Key::A);
+ *     // Tap 'A' with no modifiers
+ *     sender.tap({Key::A, Modifier::None});
+ *     // Tap Shift+A (uppercase 'A')
+ *     sender.tap({Key::A, Modifier::Shift});
+ *     // Ctrl+C combo
+ *     sender.tap({Key::C, Modifier::Ctrl});
  *   }
  *   return 0;
  * }
@@ -86,24 +100,37 @@ public:
   /**
    * @brief Simulate a physical key press and keep it pressed until `keyUp` is
    * called.
-   * @param key Logical key to press.
+   *
+   * The modifiers in `keyMod.requiredMods` are automatically pressed before the
+   * key and tracked for release when `keyUp` is called.
+   *
+   * @param keyMod Key with modifiers to press.
    * @return true on success; false on failure.
    */
-  bool keyDown(Key key);
+  bool keyDown(KeyWithModifier keyMod);
 
   /**
    * @brief Simulate a physical key release.
-   * @param key Logical key to release.
+   *
+   * Releases the key and any modifiers that were specified in `keyMod`.
+   *
+   * @param keyMod Key with modifiers to release.
    * @return true on success; false on failure.
    */
-  bool keyUp(Key key);
+  bool keyUp(KeyWithModifier keyMod);
 
   /**
-   * @brief Convenience: press and release a key with a small delay.
-   * @param key Logical key to tap.
+   * @brief Convenience: press and release a key with its modifiers.
+   *
+   * This is the primary method for sending a key event. It handles:
+   * 1. Pressing the required modifiers
+   * 2. Pressing and releasing the key
+   * 3. Releasing the modifiers
+   *
+   * @param keyMod Key with modifiers to tap.
    * @return true on success; false on failure.
    */
-  bool tap(Key key);
+  bool tap(KeyWithModifier keyMod);
 
   // --- Modifier helpers ---
   /**
@@ -132,14 +159,6 @@ public:
    * @return true on success; false on failure.
    */
   bool releaseAllModifiers();
-
-  /**
-   * @brief Execute a key combo: press modifiers, tap key, release modifiers.
-   * @param mods Modifier mask to hold while tapping the key.
-   * @param key Key to tap.
-   * @return true on success; false on failure.
-   */
-  bool combo(Modifier mods, Key key);
 
   // --- Text injection ---
   /**
@@ -176,6 +195,18 @@ public:
   void setKeyDelay(uint32_t delayUs);
 
 private:
+  /**
+   * @brief Internal helper to send a raw key event without modifier handling.
+   *
+   * This is used internally by keyDown/keyUp/tap and the modifier helpers.
+   * Not part of the public API.
+   *
+   * @param key Raw key to send.
+   * @param down True for key press, false for key release.
+   * @return true on success; false on failure.
+   */
+  bool sendRawKey(Key key, bool down);
+
   struct Impl;
   std::unique_ptr<Impl> m_impl;
 };

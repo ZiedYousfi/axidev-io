@@ -5,12 +5,11 @@
 
 #include <axidev-io/c_api.h>
 
-static void noop_listener_cb(uint32_t codepoint, axidev_io_keyboard_key_t key,
-                             axidev_io_keyboard_modifier_t mods, bool pressed,
-                             void *user_data) {
+static void noop_listener_cb(uint32_t codepoint,
+                             axidev_io_keyboard_key_with_modifier_t key_mod,
+                             bool pressed, void *user_data) {
   (void)codepoint;
-  (void)key;
-  (void)mods;
+  (void)key_mod;
   (void)pressed;
   (void)user_data;
 }
@@ -43,17 +42,20 @@ TEST(CApiTest, KeyStringWithModifierConversion) {
   axidev_io_clear_last_error();
 
   /* Test keyToStringWithModifier */
-  char *s = axidev_io_keyboard_key_to_string_with_modifier(
-      axidev_io_keyboard_string_to_key("A"), AXIDEV_IO_MOD_SHIFT);
+  axidev_io_keyboard_key_with_modifier_t parsed;
+  parsed.key = axidev_io_keyboard_string_to_key("A");
+  parsed.mods = AXIDEV_IO_MOD_SHIFT;
+
+  char *s = axidev_io_keyboard_key_to_string_with_modifier(parsed);
   ASSERT_NE(s, nullptr);
   EXPECT_NE(std::string(s).find("Shift"), std::string::npos);
   EXPECT_NE(std::string(s).find("A"), std::string::npos);
   axidev_io_free_string(s);
 
   /* Test with multiple modifiers */
-  s = axidev_io_keyboard_key_to_string_with_modifier(
-      axidev_io_keyboard_string_to_key("C"),
-      AXIDEV_IO_MOD_CTRL | AXIDEV_IO_MOD_SHIFT);
+  parsed.key = axidev_io_keyboard_string_to_key("C");
+  parsed.mods = AXIDEV_IO_MOD_CTRL | AXIDEV_IO_MOD_SHIFT;
+  s = axidev_io_keyboard_key_to_string_with_modifier(parsed);
   ASSERT_NE(s, nullptr);
   EXPECT_NE(std::string(s).find("Ctrl"), std::string::npos);
   EXPECT_NE(std::string(s).find("Shift"), std::string::npos);
@@ -61,33 +63,27 @@ TEST(CApiTest, KeyStringWithModifierConversion) {
   axidev_io_free_string(s);
 
   /* Test stringToKeyWithModifier */
-  axidev_io_keyboard_key_t key;
-  axidev_io_keyboard_modifier_t mods;
-  EXPECT_TRUE(
-      axidev_io_keyboard_string_to_key_with_modifier("Shift+A", &key, &mods));
-  EXPECT_NE(key, 0u);
-  EXPECT_TRUE((mods & AXIDEV_IO_MOD_SHIFT) != 0);
+  axidev_io_keyboard_key_with_modifier_t kwm;
+  EXPECT_TRUE(axidev_io_keyboard_string_to_key_with_modifier("Shift+A", &kwm));
+  EXPECT_NE(kwm.key, 0u);
+  EXPECT_TRUE((kwm.mods & AXIDEV_IO_MOD_SHIFT) != 0);
 
   /* Verify the parsed key is correct */
-  char *key_name = axidev_io_keyboard_key_to_string(key);
+  char *key_name = axidev_io_keyboard_key_to_string(kwm.key);
   ASSERT_NE(key_name, nullptr);
   EXPECT_EQ(std::string(key_name), "A");
   axidev_io_free_string(key_name);
 
   /* Test with multiple modifier prefixes */
-  EXPECT_TRUE(axidev_io_keyboard_string_to_key_with_modifier("Ctrl+Shift+S",
-                                                             &key, &mods));
-  EXPECT_NE(key, 0u);
-  EXPECT_TRUE((mods & AXIDEV_IO_MOD_CTRL) != 0);
-  EXPECT_TRUE((mods & AXIDEV_IO_MOD_SHIFT) != 0);
+  EXPECT_TRUE(
+      axidev_io_keyboard_string_to_key_with_modifier("Ctrl+Shift+S", &kwm));
+  EXPECT_NE(kwm.key, 0u);
+  EXPECT_TRUE((kwm.mods & AXIDEV_IO_MOD_CTRL) != 0);
+  EXPECT_TRUE((kwm.mods & AXIDEV_IO_MOD_SHIFT) != 0);
 
   /* Test NULL handling */
-  EXPECT_FALSE(
-      axidev_io_keyboard_string_to_key_with_modifier(NULL, &key, &mods));
-  EXPECT_FALSE(
-      axidev_io_keyboard_string_to_key_with_modifier("Shift+A", NULL, &mods));
-  EXPECT_FALSE(
-      axidev_io_keyboard_string_to_key_with_modifier("Shift+A", &key, NULL));
+  EXPECT_FALSE(axidev_io_keyboard_string_to_key_with_modifier(NULL, &kwm));
+  EXPECT_FALSE(axidev_io_keyboard_string_to_key_with_modifier("Shift+A", NULL));
 }
 
 TEST(CApiTest, SenderCreationAndErrorHandling) {
@@ -103,7 +99,8 @@ TEST(CApiTest, SenderCreationAndErrorHandling) {
 
   /* Passing NULL sender should fail and set last error. */
   axidev_io_clear_last_error();
-  bool ok = axidev_io_keyboard_sender_key_down(NULL, (axidev_io_keyboard_key_t)1);
+  axidev_io_keyboard_key_with_modifier_t test_key_mod = {1, 0};
+  bool ok = axidev_io_keyboard_sender_key_down(NULL, test_key_mod);
   EXPECT_FALSE(ok);
   char *err = axidev_io_get_last_error();
   ASSERT_NE(err, nullptr);

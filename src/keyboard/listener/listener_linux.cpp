@@ -463,7 +463,7 @@ private:
       cbCopy = callback;
     }
     if (cbCopy)
-      cbCopy(codepoint, mapped, mods, pressed);
+      cbCopy(codepoint, KeyWithModifier(mapped, mods), pressed);
 
     // Debug logging
     {

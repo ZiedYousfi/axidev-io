@@ -279,7 +279,7 @@ private:
     BYTE keyboardState[256];
     if (!GetKeyboardState(keyboardState)) {
       // Fall back: no keyboard state; still report key with no codepoint.
-      invokeCallback(0, mappedKey, deriveModifiers(), pressed);
+      invokeCallback(0, KeyWithModifier(mappedKey, deriveModifiers()), pressed);
       return;
     }
 
@@ -413,7 +413,7 @@ private:
       lastPressCp.erase(vk);
     }
 
-    invokeCallback(codepoint, mappedKey, mods, pressed);
+    invokeCallback(codepoint, KeyWithModifier(mappedKey, mods), pressed);
 
     AXIDEV_IO_LOG_DEBUG(
         "Listener (Windows) %s: vk=%u sc=%u flags=%u key=%s cp=%u mods=%u",
@@ -455,18 +455,17 @@ private:
    * the lock to avoid holding internal mutexes while calling user code.
    *
    * @param cp Unicode codepoint produced by the event (0 if none).
-   * @param k Logical Key for the event.
-   * @param mods Modifier bitmask at time of event.
+   * @param keyMod Combined key and modifier information for the event.
    * @param pressed True for key press, false for release.
    */
-  void invokeCallback(char32_t cp, Key k, Modifier mods, bool pressed) {
+  void invokeCallback(char32_t cp, KeyWithModifier keyMod, bool pressed) {
     Callback cbCopy;
     {
       std::lock_guard<std::mutex> lk(cbMutex);
       cbCopy = callback;
     }
     if (cbCopy) {
-      cbCopy(cp, k, mods, pressed);
+      cbCopy(cp, keyMod, pressed);
     }
   }
 

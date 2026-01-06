@@ -404,75 +404,101 @@ bool Sender::isReady() const { return m_impl && m_impl->fd >= 0; }
 
 bool Sender::requestPermissions() { return isReady(); }
 
-bool Sender::keyDown(Key key) {
+// Internal helper to send a raw key event (used by public API)
+bool Sender::sendRawKey(Key key, bool down) {
   if (!m_impl)
     return false;
 
-  switch (key) {
-  case Key::ShiftLeft:
-  case Key::ShiftRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Shift;
-    break;
-  case Key::CtrlLeft:
-  case Key::CtrlRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Ctrl;
-    break;
-  case Key::AltLeft:
-  case Key::AltRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Alt;
-    break;
-  case Key::SuperLeft:
-  case Key::SuperRight:
-    m_impl->currentMods = m_impl->currentMods | Modifier::Super;
-    break;
-  default:
-    break;
+  if (down) {
+    switch (key) {
+    case Key::ShiftLeft:
+    case Key::ShiftRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Shift;
+      break;
+    case Key::CtrlLeft:
+    case Key::CtrlRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Ctrl;
+      break;
+    case Key::AltLeft:
+    case Key::AltRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Alt;
+      break;
+    case Key::SuperLeft:
+    case Key::SuperRight:
+      m_impl->currentMods = m_impl->currentMods | Modifier::Super;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (key) {
+    case Key::ShiftLeft:
+    case Key::ShiftRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
+                                ~static_cast<uint8_t>(Modifier::Shift));
+      break;
+    case Key::CtrlLeft:
+    case Key::CtrlRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
+                                ~static_cast<uint8_t>(Modifier::Ctrl));
+      break;
+    case Key::AltLeft:
+    case Key::AltRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
+                                ~static_cast<uint8_t>(Modifier::Alt));
+      break;
+    case Key::SuperLeft:
+    case Key::SuperRight:
+      m_impl->currentMods =
+          static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
+                                ~static_cast<uint8_t>(Modifier::Super));
+      break;
+    default:
+      break;
+    }
   }
-  return m_impl->sendKeyByKey(key, true);
+  return m_impl->sendKeyByKey(key, down);
 }
 
-bool Sender::keyUp(Key key) {
+bool Sender::keyDown(KeyWithModifier keyMod) {
   if (!m_impl)
     return false;
-
-  bool result = m_impl->sendKeyByKey(key, false);
-
-  switch (key) {
-  case Key::ShiftLeft:
-  case Key::ShiftRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
-                              ~static_cast<uint8_t>(Modifier::Shift));
-    break;
-  case Key::CtrlLeft:
-  case Key::CtrlRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
-                              ~static_cast<uint8_t>(Modifier::Ctrl));
-    break;
-  case Key::AltLeft:
-  case Key::AltRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
-                              ~static_cast<uint8_t>(Modifier::Alt));
-    break;
-  case Key::SuperLeft:
-  case Key::SuperRight:
-    m_impl->currentMods =
-        static_cast<Modifier>(static_cast<uint8_t>(m_impl->currentMods) &
-                              ~static_cast<uint8_t>(Modifier::Super));
-    break;
-  default:
-    break;
+  // Press required modifiers first
+  if (!holdModifier(keyMod.requiredMods)) {
+    return false;
   }
+  return sendRawKey(keyMod.key, true);
+}
+
+bool Sender::keyUp(KeyWithModifier keyMod) {
+  if (!m_impl)
+    return false;
+  bool result = sendRawKey(keyMod.key, false);
+  // Release modifiers that were specified
+  releaseModifier(keyMod.requiredMods);
   return result;
 }
 
-bool Sender::tap(Key key) {
-  if (!keyDown(key))
+bool Sender::tap(KeyWithModifier keyMod) {
+  if (!m_impl)
     return false;
+  // Hold modifiers, tap key, release modifiers
+  if (!holdModifier(keyMod.requiredMods)) {
+    return false;
+  }
   m_impl->delay();
-  return keyUp(key);
+  if (!sendRawKey(keyMod.key, true)) {
+    releaseModifier(keyMod.requiredMods);
+    return false;
+  }
+  m_impl->delay();
+  bool ok = sendRawKey(keyMod.key, false);
+  m_impl->delay();
+  releaseModifier(keyMod.requiredMods);
+  return ok;
 }
 
 Modifier Sender::activeModifiers() const {
@@ -482,42 +508,32 @@ Modifier Sender::activeModifiers() const {
 bool Sender::holdModifier(Modifier mod) {
   bool ok = true;
   if (hasModifier(mod, Modifier::Shift))
-    ok &= keyDown(Key::ShiftLeft);
+    ok &= sendRawKey(Key::ShiftLeft, true);
   if (hasModifier(mod, Modifier::Ctrl))
-    ok &= keyDown(Key::CtrlLeft);
+    ok &= sendRawKey(Key::CtrlLeft, true);
   if (hasModifier(mod, Modifier::Alt))
-    ok &= keyDown(Key::AltLeft);
+    ok &= sendRawKey(Key::AltLeft, true);
   if (hasModifier(mod, Modifier::Super))
-    ok &= keyDown(Key::SuperLeft);
+    ok &= sendRawKey(Key::SuperLeft, true);
   return ok;
 }
 
 bool Sender::releaseModifier(Modifier mod) {
   bool ok = true;
   if (hasModifier(mod, Modifier::Shift))
-    ok &= keyUp(Key::ShiftLeft);
+    ok &= sendRawKey(Key::ShiftLeft, false);
   if (hasModifier(mod, Modifier::Ctrl))
-    ok &= keyUp(Key::CtrlLeft);
+    ok &= sendRawKey(Key::CtrlLeft, false);
   if (hasModifier(mod, Modifier::Alt))
-    ok &= keyUp(Key::AltLeft);
+    ok &= sendRawKey(Key::AltLeft, false);
   if (hasModifier(mod, Modifier::Super))
-    ok &= keyUp(Key::SuperLeft);
+    ok &= sendRawKey(Key::SuperLeft, false);
   return ok;
 }
 
 bool Sender::releaseAllModifiers() {
   return releaseModifier(Modifier::Shift | Modifier::Ctrl | Modifier::Alt |
                          Modifier::Super);
-}
-
-bool Sender::combo(Modifier mods, Key key) {
-  if (!holdModifier(mods))
-    return false;
-  m_impl->delay();
-  bool ok = tap(key);
-  m_impl->delay();
-  releaseModifier(mods);
-  return ok;
 }
 
 bool Sender::typeText(const std::u32string &text) {

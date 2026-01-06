@@ -240,9 +240,9 @@ axidev_io_keyboard_sender_request_permissions(axidev_io_keyboard_sender_t sender
   }
 }
 
-AXIDEV_IO_API bool
-axidev_io_keyboard_sender_key_down(axidev_io_keyboard_sender_t sender,
-                                 axidev_io_keyboard_key_t key) {
+AXIDEV_IO_API bool axidev_io_keyboard_sender_key_down(
+    axidev_io_keyboard_sender_t sender,
+    axidev_io_keyboard_key_with_modifier_t key_mod) {
   if (!sender) {
     set_last_error("sender is NULL");
     return false;
@@ -250,7 +250,10 @@ axidev_io_keyboard_sender_key_down(axidev_io_keyboard_sender_t sender,
   try {
     clear_last_error();
     SenderWrapper *w = reinterpret_cast<SenderWrapper *>(sender);
-    return w->sender.keyDown(static_cast<axidev::io::keyboard::Key>(key));
+    axidev::io::keyboard::KeyWithModifier kwm{
+        static_cast<axidev::io::keyboard::Key>(key_mod.key),
+        static_cast<axidev::io::keyboard::Modifier>(key_mod.mods)};
+    return w->sender.keyDown(kwm);
   } catch (const std::exception &e) {
     set_last_error(e.what());
     return false;
@@ -260,9 +263,9 @@ axidev_io_keyboard_sender_key_down(axidev_io_keyboard_sender_t sender,
   }
 }
 
-AXIDEV_IO_API bool
-axidev_io_keyboard_sender_key_up(axidev_io_keyboard_sender_t sender,
-                               axidev_io_keyboard_key_t key) {
+AXIDEV_IO_API bool axidev_io_keyboard_sender_key_up(
+    axidev_io_keyboard_sender_t sender,
+    axidev_io_keyboard_key_with_modifier_t key_mod) {
   if (!sender) {
     set_last_error("sender is NULL");
     return false;
@@ -270,7 +273,10 @@ axidev_io_keyboard_sender_key_up(axidev_io_keyboard_sender_t sender,
   try {
     clear_last_error();
     SenderWrapper *w = reinterpret_cast<SenderWrapper *>(sender);
-    return w->sender.keyUp(static_cast<axidev::io::keyboard::Key>(key));
+    axidev::io::keyboard::KeyWithModifier kwm{
+        static_cast<axidev::io::keyboard::Key>(key_mod.key),
+        static_cast<axidev::io::keyboard::Modifier>(key_mod.mods)};
+    return w->sender.keyUp(kwm);
   } catch (const std::exception &e) {
     set_last_error(e.what());
     return false;
@@ -280,8 +286,9 @@ axidev_io_keyboard_sender_key_up(axidev_io_keyboard_sender_t sender,
   }
 }
 
-AXIDEV_IO_API bool axidev_io_keyboard_sender_tap(axidev_io_keyboard_sender_t sender,
-                                             axidev_io_keyboard_key_t key) {
+AXIDEV_IO_API bool
+axidev_io_keyboard_sender_tap(axidev_io_keyboard_sender_t sender,
+                              axidev_io_keyboard_key_with_modifier_t key_mod) {
   if (!sender) {
     set_last_error("sender is NULL");
     return false;
@@ -289,7 +296,10 @@ AXIDEV_IO_API bool axidev_io_keyboard_sender_tap(axidev_io_keyboard_sender_t sen
   try {
     clear_last_error();
     SenderWrapper *w = reinterpret_cast<SenderWrapper *>(sender);
-    return w->sender.tap(static_cast<axidev::io::keyboard::Key>(key));
+    axidev::io::keyboard::KeyWithModifier kwm{
+        static_cast<axidev::io::keyboard::Key>(key_mod.key),
+        static_cast<axidev::io::keyboard::Modifier>(key_mod.mods)};
+    return w->sender.tap(kwm);
   } catch (const std::exception &e) {
     set_last_error(e.what());
     return false;
@@ -380,27 +390,6 @@ AXIDEV_IO_API bool axidev_io_keyboard_sender_release_all_modifiers(
   } catch (...) {
     set_last_error(
         "Unknown exception in axidev_io_keyboard_sender_release_all_modifiers");
-    return false;
-  }
-}
-
-AXIDEV_IO_API bool axidev_io_keyboard_sender_combo(axidev_io_keyboard_sender_t sender,
-                                               axidev_io_keyboard_modifier_t mods,
-                                               axidev_io_keyboard_key_t key) {
-  if (!sender) {
-    set_last_error("sender is NULL");
-    return false;
-  }
-  try {
-    clear_last_error();
-    SenderWrapper *w = reinterpret_cast<SenderWrapper *>(sender);
-    return w->sender.combo(static_cast<axidev::io::keyboard::Modifier>(mods),
-                           static_cast<axidev::io::keyboard::Key>(key));
-  } catch (const std::exception &e) {
-    set_last_error(e.what());
-    return false;
-  } catch (...) {
-    set_last_error("Unknown exception in axidev_io_keyboard_sender_combo");
     return false;
   }
 }
@@ -575,8 +564,9 @@ axidev_io_keyboard_listener_start(axidev_io_keyboard_listener_t listener,
      *  - This lambda is invoked on the listener's internal thread. The C
      *    callback must be thread-safe and avoid long/blocking operations.
      */
-    auto bridge = [w](char32_t codepoint, axidev::io::keyboard::Key key,
-                      axidev::io::keyboard::Modifier mods, bool pressed) {
+    auto bridge = [w](char32_t codepoint,
+                      axidev::io::keyboard::KeyWithModifier keyMod,
+                      bool pressed) {
       // Forward event to C callback; protect access to cb & user_data.
       axidev_io_keyboard_listener_cb local_cb = nullptr;
       void *local_ud = nullptr;
@@ -587,11 +577,13 @@ axidev_io_keyboard_listener_start(axidev_io_keyboard_listener_t listener,
       }
       if (local_cb) {
         try {
-          local_cb(static_cast<uint32_t>(codepoint),
-                   static_cast<axidev_io_keyboard_key_t>(key),
-                   static_cast<axidev_io_keyboard_modifier_t>(
-                       static_cast<uint8_t>(mods)),
-                   pressed, local_ud);
+          axidev_io_keyboard_key_with_modifier_t c_key_mod;
+          c_key_mod.key = static_cast<axidev_io_keyboard_key_t>(keyMod.key);
+          c_key_mod.mods = static_cast<axidev_io_keyboard_modifier_t>(
+              static_cast<uint8_t>(keyMod.requiredMods));
+
+          local_cb(static_cast<uint32_t>(codepoint), c_key_mod, pressed,
+                   local_ud);
         } catch (...) {
           // Swallow exceptions from user-provided C callbacks to avoid letting
           // them unwind into C++ internals.
@@ -699,12 +691,12 @@ axidev_io_keyboard_string_to_key(const char *name) {
 }
 
 AXIDEV_IO_API char *axidev_io_keyboard_key_to_string_with_modifier(
-    axidev_io_keyboard_key_t key, axidev_io_keyboard_modifier_t mods) {
+    axidev_io_keyboard_key_with_modifier_t key_mod) {
   try {
     clear_last_error();
     std::string s = axidev::io::keyboard::keyToStringWithModifier(
-        static_cast<axidev::io::keyboard::Key>(key),
-        static_cast<axidev::io::keyboard::Modifier>(mods));
+        static_cast<axidev::io::keyboard::Key>(key_mod.key),
+        static_cast<axidev::io::keyboard::Modifier>(key_mod.mods));
     return duplicate_c_string(s);
   } catch (const std::exception &e) {
     set_last_error(e.what());
@@ -717,35 +709,39 @@ AXIDEV_IO_API char *axidev_io_keyboard_key_to_string_with_modifier(
 }
 
 AXIDEV_IO_API bool axidev_io_keyboard_string_to_key_with_modifier(
-    const char *combo, axidev_io_keyboard_key_t *out_key,
-    axidev_io_keyboard_modifier_t *out_mods) {
+    const char *combo, axidev_io_keyboard_key_with_modifier_t *out_key_mod) {
   if (!combo) {
     set_last_error("combo is NULL");
     return false;
   }
-  if (!out_key || !out_mods) {
-    set_last_error("out_key or out_mods is NULL");
+  if (!out_key_mod) {
+    set_last_error("out_key_mod is NULL");
     return false;
   }
   try {
     clear_last_error();
     auto kwm =
         axidev::io::keyboard::stringToKeyWithModifier(std::string(combo));
-    *out_key = static_cast<axidev_io_keyboard_key_t>(kwm.key);
-    *out_mods = static_cast<axidev_io_keyboard_modifier_t>(kwm.requiredMods);
+    out_key_mod->key = static_cast<axidev_io_keyboard_key_t>(kwm.key);
+    out_key_mod->mods = static_cast<axidev_io_keyboard_modifier_t>(
+        static_cast<uint8_t>(kwm.requiredMods));
     return true;
   } catch (const std::exception &e) {
     set_last_error(e.what());
-    *out_key = static_cast<axidev_io_keyboard_key_t>(
-        axidev::io::keyboard::Key::Unknown);
-    *out_mods = 0;
+    if (out_key_mod) {
+      out_key_mod->key = static_cast<axidev_io_keyboard_key_t>(
+          axidev::io::keyboard::Key::Unknown);
+      out_key_mod->mods = 0;
+    }
     return false;
   } catch (...) {
     set_last_error(
         "Unknown exception in axidev_io_keyboard_string_to_key_with_modifier");
-    *out_key = static_cast<axidev_io_keyboard_key_t>(
-        axidev::io::keyboard::Key::Unknown);
-    *out_mods = 0;
+    if (out_key_mod) {
+      out_key_mod->key = static_cast<axidev_io_keyboard_key_t>(
+          axidev::io::keyboard::Key::Unknown);
+      out_key_mod->mods = 0;
+    }
     return false;
   }
 }

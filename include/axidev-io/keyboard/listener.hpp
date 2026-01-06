@@ -37,9 +37,10 @@
  *
  * int main() {
  *   axidev::io::keyboard::Listener l;
- *   bool ok = l.start([](char32_t _cp, axidev::io::keyboard::Key k,
- *                        axidev::io::keyboard::Modifier m, bool pressed) {
- *     // Use k and m for most logic; codepoint is often unnecessary.
+ *   bool ok = l.start([](char32_t _cp, axidev::io::keyboard::KeyWithModifier
+ * keyMod, bool pressed) {
+ *     // Use keyMod.key and keyMod.requiredMods for logic.
+ *     // Use KeyMap::instance().keyForCharacter() to convert characters.
  *   });
  *   if (!ok) {
  *     // Listener couldn't be started (missing permissions/platform support)
@@ -75,18 +76,20 @@ public:
    *
    * @param codepoint Unicode codepoint produced by the event (0 if none).
    *                  This value is provided for convenience but is often not
-   *                  needed for most applications. Usage of @p key and @p mods
-   *                  is generally preferred for consistency and portability.
-   * @param key Logical key identifier (Key::Unknown if unknown).
-   * @param mods Current modifier state (Modifiers bitmask).
+   *                  needed for most applications. Usage of @p keyMod is
+   *                  generally preferred for consistency and portability.
+   * @param keyMod Combined key and modifier information. Contains both the
+   *               logical key identifier and the required modifiers that were
+   *               active during the event. Use the KeyMap conversion functions
+   *               to translate between characters and KeyWithModifier values.
    * @param pressed True for key press, false for key release.
    *
    * @note Consumers that need the character actually delivered to the focused
    *       application or terminal should consider handling events on key
    *       release (when `pressed == false`).
    */
-  using Callback = std::function<void(char32_t codepoint, Key key,
-                                      Modifier mods, bool pressed)>;
+  using Callback = std::function<void(char32_t codepoint,
+                                      KeyWithModifier keyMod, bool pressed)>;
 
   Listener();
   ~Listener();
